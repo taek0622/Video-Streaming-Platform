@@ -48,4 +48,32 @@ app.use((req, res) => {
     });
 });
 
+// Start server
+const PORT = process.env.PORT || 3000;
+
+const startServer = async () => {
+    try {
+        // DB 연결 테스트
+        await testConnection();
+
+        // DB 동기화 (개발 환경)
+        if (process.env.NODE_ENV === "development") {
+            await sequelize.afterSync({ alter: false });
+            console.log("Database synchronized");
+        }
+
+        // 서버 시작
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+            console.log(`Environment: ${process.env.NODE_ENV}`);
+            console.log(`http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("Failed to start server:", error);
+        process.exit(1);
+    }
+};
+
+startServer();
+
 module.exports = app;
