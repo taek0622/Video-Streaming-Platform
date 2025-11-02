@@ -6,6 +6,11 @@ const { sequelize, testConnection } = require("./config/database");
 
 const app = express();
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // 서버 상태 확인
 app.get("/status", (req, res) => {
     res.json({
