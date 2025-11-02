@@ -6,6 +6,14 @@ const { sequelize, testConnection } = require("./config/database");
 
 const app = express();
 
+// 서버 상태 확인
+app.get("/status", (req, res) => {
+    res.json({
+        status: "OK",
+        timestamp: new Date().toISOString(),
+    });
+});
+
 // 기본 라우트
 app.get("/", (req, res) => {
     res.json({
