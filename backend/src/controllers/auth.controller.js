@@ -1,4 +1,4 @@
-const bcrupt = require("bcryptjs");
+const bcrypt = require("bcryptjs");
 const { User } = require("../models");
 const { generateAuthToken } = require("../utils/jwt");
 
@@ -19,7 +19,7 @@ exports.googleLogin = async (req, res) => {
             error:
                 process.env.NODE_ENV === "development"
                     ? error.message
-                    : undeifned,
+                    : undefined,
         });
     }
 };
@@ -48,7 +48,7 @@ exports.appleLogin = async (req, res) => {
 
 // 내 정보 조회
 // GET /api/auth/me
-exports.getMe = async (res, req) => {
+exports.getMe = async (req, res) => {
     try {
         // requireAuth 미들웨어에서 req.user에 저장됨
         res.json({
