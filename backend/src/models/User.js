@@ -103,8 +103,16 @@ module.exports = (sequelize, DataTypes) => {
 
     // 인스턴스 메서드: 안전한 사용자 정보 반환 (비밀번호 제외)
     User.prototype.toSafeObject = function () {
-        const { id, username, email, fullName, profileImage, createdAt } = this;
-        return { id, username, email, fullName, profileImage, createdAt };
+        const { id, username, email, fullName, profileImage, created_at } =
+            this;
+        return {
+            id,
+            username,
+            email,
+            fullName,
+            profileImage,
+            createdAt: created_at,
+        };
     };
 
     return User;
