@@ -3,6 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const { sequelize, testConnection } = require("./config/database");
+const models = require("./models"); // import model
 
 const app = express();
 
@@ -27,6 +28,17 @@ app.get("/", (req, res) => {
     res.json({
         message: "Video Streaming Platform API",
         version: "1.0.0",
+    });
+});
+
+// 테스트용: 모델 확인
+app.get("/models", (req, res) => {
+    const modelNames = Object.keys(models).filter(
+        (key) => key !== "sequelize" && key !== "Sequelize"
+    );
+    res.json({
+        models: modelNames,
+        message: "Available models",
     });
 });
 
@@ -58,8 +70,17 @@ const startServer = async () => {
 
         // DB 동기화 (개발 환경)
         if (process.env.NODE_ENV === "development") {
-            await sequelize.afterSync({ alter: false });
+            // force: true - 테이블 삭제 후 재생성
+            // alter: true - 테이블 구조 변경 (컬럼 추가/삭제)
+            await sequelize.sync({ force: false, alter: true });
             console.log("Database synchronized");
+            console.log(
+                "Models:",
+                Object.keys(models)
+                    .filter((key) => key !== "sequelize" && key !== "Sequelize")
+                    .join(", ")
+            );
+
         }
 
         // 서버 시작
