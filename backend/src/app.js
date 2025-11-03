@@ -34,6 +34,10 @@ app.get("/", (req, res) => {
     res.json({
         message: "Video Streaming Platform API",
         version: "1.0.0",
+        endpoints: {
+            auth: "/api/auth",
+            status: "/status",
+        },
     });
 });
 
@@ -97,6 +101,7 @@ const startServer = async () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV}`);
             console.log(`http://localhost:${PORT}`);
+            console.log(`API Docs: https://localhost:${PORT}/`);
         });
     } catch (error) {
         console.error("Failed to start server:", error);
