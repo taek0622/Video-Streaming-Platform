@@ -9,16 +9,18 @@ exports.getVideos = async (req, res) => {
             page = 1,
             limit = 20,
             type = "vod",
-            sort = "createdAt",
+            sort = "created_at",
             order = "DESC",
         } = req.query;
 
         const offset = (parseInt(page) - 1) * parseInt(limit);
 
         // 정렬 옵션 검증
-        const allowedSortFields = ["createdAt", "views", "title"];
+        const allowedSortFields = ["created_at", "views", "title"];
         const allowedOrders = ["ASC", "DESC"];
-        const sortField = allowedSortFields.includes(sort) ? sort : "createdAt";
+        const sortField = allowedSortFields.includes(sort)
+            ? sort
+            : "created_at";
         const sortOrder = allowedOrders.includes(order.toUpperCase())
             ? order.toUpperCase()
             : "DESC";
@@ -93,7 +95,7 @@ exports.getVideoDetail = async (req, res) => {
                             attributes: ["id", "username", "profileImage"],
                         },
                     ],
-                    order: [["createdAt", "DESC"]],
+                    order: [["created_at", "DESC"]],
                     limit: 10, // 최근 댓글 10개만
                 },
             ],
@@ -340,7 +342,7 @@ exports.getVideosByUploader = async (req, res) => {
                     attributes: ["id", "username", "profileImage", "fullName"],
                 },
             ],
-            order: [["createdAt", "DESC"]],
+            order: [["created_at", "DESC"]],
             limit: parseInt(limit),
             offset: offset,
         });
