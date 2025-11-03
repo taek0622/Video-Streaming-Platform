@@ -15,6 +15,12 @@ app.use(express.urlencoded({ extended: true }));
 // 업로드 영상 재생
 app.use("/uploads", express.static("uploads"));
 
+// import route
+const authRoutes = require("./routes/auth.routes");
+
+// API 라우트
+app.use("/api/auth", authRoutes);
+
 // 서버 상태 확인
 app.get("/status", (req, res) => {
     res.json({
