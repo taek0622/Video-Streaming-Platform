@@ -81,6 +81,9 @@ const startServer = async () => {
                     .join(", ")
             );
 
+            // 테스트 데이터 추가 (최초 1회만)
+            // const { seedTestData } = require("./utils/seedData");
+            // await seedTestData();
         }
 
         // 서버 시작
