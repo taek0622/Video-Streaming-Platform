@@ -17,9 +17,11 @@ app.use("/uploads", express.static("uploads"));
 
 // import route
 const authRoutes = require("./routes/auth.routes");
+const videoRoutes = require("./routes/video.routes");
 
 // API 라우트
 app.use("/api/auth", authRoutes);
+app.use("/api/videos", videoRoutes);
 
 // 서버 상태 확인
 app.get("/status", (req, res) => {
