@@ -27,7 +27,7 @@ router.post(
 );
 
 // 썸네일만 업로드 (로그인 필수)
-router.poast(
+router.post(
     "/thumbnail",
     requireAuth,
     (req, res, next) => {
@@ -45,7 +45,7 @@ router.poast(
 );
 
 // 영상 + 썸네일 동시 업로드 (로그인 필수)
-router.poast(
+router.post(
     "/video-with-thumbnail",
     requireAuth,
     (req, res, next) => {

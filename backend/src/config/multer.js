@@ -1,7 +1,7 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const { v4: uuidv4 } = reqruie("uuid");
+const { v4: uuidv4 } = require("uuid");
 
 // 업로드 디렉토리 확인 및 생성
 const ensureDirectoryExists = (directory) => {
