@@ -24,7 +24,7 @@ exports.getComments = async (req, res) => {
         }
 
         // 정렬 옵션 검증
-        const allowdSortFields = ["created_at", "updated_at"];
+        const allowedSortFields = ["created_at", "updated_at"];
         const allowedOrders = ["ASC", "DESC"];
         const sortField = allowedSortFields.includes(sort)
             ? sort
@@ -196,7 +196,7 @@ exports.updateComment = async (req, res) => {
             ],
         });
 
-        return req.json({
+        return res.json({
             success: true,
             data: {
                 comment: updatedComment,
