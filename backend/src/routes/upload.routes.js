@@ -61,3 +61,5 @@ router.post(
     },
     uploadController.uploadVideoWithThumbnail
 );
+
+module.exports = router;
