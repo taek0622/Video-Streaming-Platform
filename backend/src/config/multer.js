@@ -45,7 +45,9 @@ const videoFilter = (req, file, cb) => {
     const extname = allowedExtensions.test(
         path.extname(file.originalname).toLowerCase()
     );
-    const mimetype = file.mimetype.startsWith("video/");
+    const mimetype =
+        file.mimetype.startsWith("video/") ||
+        file.mimetype === "application/octet-stream";
 
     if (extname && mimetype) {
         cb(null, true);
@@ -64,7 +66,9 @@ const thumbnailFilter = (req, file, cb) => {
     const extname = allowedExtensions.test(
         path.extname(file.originalname).toLowerCase()
     );
-    const mimetype = file.mimetype.startsWith("image/");
+    const mimetype =
+        file.mimetype.startsWith("image/") ||
+        file.mimetype === "aplication/octet-stream";
 
     if (extname && mimetype) {
         cb(null, true);
