@@ -5,7 +5,7 @@ const { requireAuth } = require("../middleware/auth.middleware");
 const {
     uploadVideo,
     uploadThumbnail,
-    uploadWithThumbnail,
+    uploadVideoWithThumbnail,
 } = require("../config/multer");
 
 // 영상 파일만 업로드 (로그인 필수)

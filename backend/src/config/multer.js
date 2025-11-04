@@ -54,7 +54,7 @@ const videoFilter = (req, file, cb) => {
     } else {
         cb(
             new Error(
-                "Only video files are allowed (mp4, avi, mov, mkv, webm, flv"
+                "Only video files are allowed (mp4, avi, mov, mkv, webm, flv)"
             )
         );
     }
