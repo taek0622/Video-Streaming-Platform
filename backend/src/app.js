@@ -19,7 +19,7 @@ app.use("/uploads", express.static("uploads"));
 const authRoutes = require("./routes/auth.routes");
 const videoRoutes = require("./routes/video.routes");
 const commentRoutes = require("./routes/comment.routes");
-const uploadRoutes = require("./routes/upload/routes");
+const uploadRoutes = require("./routes/upload.routes");
 
 // API 라우트
 app.use("/api/auth", authRoutes);
