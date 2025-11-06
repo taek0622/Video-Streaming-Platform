@@ -48,11 +48,23 @@ module.exports = (sequelize, DataTypes) => {
                 defaultValue: false,
                 field: "is_live",
             },
-            // VOD용 필드
+            // VOD용 필드 - 원본 파일
             videoUrl: {
                 type: DataTypes.STRING(255),
                 allowNull: true,
                 field: "video_url",
+            },
+            // VOD용 필드 - HLS 플레이리스트
+            hlsUrl: {
+                type: DataTypes.STRING(255),
+                allowNull: true,
+                field: "hls_url",
+            },
+            // HLS 처리 상태
+            hlsStatus: {
+                type: DataTypes.STRING(20),
+                defaultValue: "pending", // pending, processing, completed, failed
+                field: "hls_status",
             },
             duration: {
                 type: DataTypes.INTEGER, // 초 단위
@@ -60,6 +72,15 @@ module.exports = (sequelize, DataTypes) => {
                 validate: {
                     min: 0,
                 },
+            },
+            // 영상 해상도
+            width: {
+                type: DataTypes.INTEGER,
+                allowNull: true,
+            },
+            height: {
+                type: DataTypes.INTEGER,
+                allowNull: true,
             },
             // 공통 필드
             uploaderId: {
@@ -95,6 +116,7 @@ module.exports = (sequelize, DataTypes) => {
                 { fields: ["is_live"] },
                 { fields: ["created_at"] },
                 { fields: ["title"] }, // 검색용
+                { fields: ["hls_status"] },
             ],
         }
     );
