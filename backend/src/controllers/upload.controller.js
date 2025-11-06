@@ -54,7 +54,8 @@ exports.uploadVideoFile = async (req, res) => {
             hlsStatus: "processing", // HLS 변환 중
         });
 
-        return res.status(201).json({
+        // 클라이언트에게 즉시 응답 (변환은 백그라운드에서)
+        res.status(201).json({
             success: true,
             data: {
                 video: {
@@ -249,7 +250,7 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
             hlsStatus: "processing",
         });
 
-        return res.status(201).json({
+        res.status(201).json({
             success: true,
             data: {
                 video: {
