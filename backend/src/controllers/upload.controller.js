@@ -240,3 +240,136 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
         });
     }
 };
+
+/**
+ * 백그라운드 영상 처리
+ * @param {number} videoId - 영상 ID
+ * @param {string} videoPath - 원본 영상 파일 경로
+ * @param {string} quality - 'single' or 'adaptive'
+ * @param {boolean} keepOriginal - 원본 파일 유지 여부
+ */
+async function processVideoInBackground(
+    videoId,
+    videoPath,
+    quality = "single",
+    keepOriginal = false
+) {
+    try {
+        console.log(
+            `Processing video ${videoId} (quality: ${quality}, keepOriginal: ${keepOriginal})...`
+        );
+
+        const video = await Video.findByPk(videoId);
+        if (!video) {
+            console.error("Video not found:", videoId);
+            return;
+        }
+
+        // 영상 정보 추출
+        console.log("Extracting video info...");
+        const videoInfo = await getVideoInfo(videoPath);
+
+        await video.update({
+            duration: videoInfo.duration,
+            width: videoInfo.width,
+            height: videoInfo.height,
+        });
+
+        console.log(
+            `Video info: ${videoInfo.width}x${videoInfo.height}, ${videoInfo.duration}s, ${videoInfo.videoCodec}`
+        );
+
+        // HLS 변환
+        const videoFileName = path.basename(videoPath, path.extname(videoPath));
+        const hlsDir = path.join(path.dirname(videoPath), "hls", videoFileName);
+
+        let hlsResult;
+
+        if (quality === "adaptive") {
+            // 다중 화질 (ABR)
+            console.log("Converting to Adaptive HLS (fMP4)...");
+            hlsResult = await convertToAdaptiveHLS(videoPath, hlsDir, "stream");
+
+            await video.update({
+                hlsUrl: hlsResult.masterPlaylistUrl,
+                hlsStatus: "completed",
+            });
+        } else {
+            // 단일 화질 (빠른 변환 시도)
+            console.log("Converting to HLS (fMP4)...");
+
+            // H.264/AAC 체크 후 빠른 변환 시도
+            const isCompatible =
+                videoInfo.videoCodec === "h264" &&
+                (videoInfo.audioCodec === "aac" || !videoInfo.audioCodec);
+
+            if (isCompatible) {
+                console.log("Using fast conversion (codec copy)");
+                hlsResult = await convertToHLSFast(
+                    videoPath,
+                    hlsDir,
+                    "playlist"
+                );
+            } else {
+                console.log("Using standard conversion (re-encoding)");
+                hlsResult = await convertToHLS(videoPath, hlsDir, "playlist");
+            }
+
+            await video.update({
+                hls: hlsResult.playlistUrl,
+                hlsStatus: "completed",
+            });
+        }
+
+        // 썸네일 생성 (없으면)
+        if (!video.thumbnailUrl) {
+            console.log("Generating thumbnail...");
+            const thumbnailDir = path.join(
+                __dirname,
+                "../../uploads/thumbnails"
+            );
+            await fs.mkdir(thumbnailDir, { recursive: true });
+
+            const thumbnailPath = path.join(
+                thumbnailDir,
+                `${videoFileName}.jpg`
+            );
+            const thumbnailTime = Math.min(videoInfo.duration * 0.1, 5);
+            await generateThumbnail(videoPath, thumbnailPath, thumbnailTime);
+
+            await video.update({
+                thumbnailUrl: `/uploads/thumbnails/${videoFileName}.jpg`,
+            });
+        }
+
+        // 원본 파일 삭제 (옵션)
+        if (!keepOriginal) {
+            console.log("Deleting original file...");
+            try {
+                await fs.unlink(videoPath);
+                console.log("Original file deleted");
+
+                // DB에서 videoUrl을 null로 설정 (HLS만 사용)
+                await video.update({ videoUrl: null });
+            } catch (error) {
+                console.error("Failed to delete original file:", error);
+                // 삭제 실패해도 계속 진행
+            }
+        } else {
+            console.log("Original file kept");
+        }
+
+        console.log(`Video ${videoId} processing completed!`);
+        console.log(`   Format: fMP4`);
+        console.log(`   Segments: ${hlsResult.segmentCount || "N/A"}`);
+        console.log(`   Quality: ${quality}`);
+        console.log(`   Original: ${keepOriginal ? "Kept" : "Deleted"}`);
+    } catch (error) {
+        console.error(`Video ${videoId} processing failed`, error);
+
+        const video = await Video.findByPk(videoId);
+        if (video) {
+            await video.update({ hlsStatus: "failed" });
+        }
+    }
+}
