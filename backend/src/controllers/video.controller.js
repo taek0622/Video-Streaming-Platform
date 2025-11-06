@@ -377,3 +377,50 @@ exports.getVideosByUploader = async (req, res) => {
         });
     }
 };
+
+/**
+ * HLS 변환 상태 확인
+ * GET /api/videos/:id/hls-status
+ */
+exports.getHLSStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const video = await Video.findByPk(id, {
+            attributes: [
+                "id",
+                "title",
+                "hlsStatus",
+                "hlsUrl",
+                "videoUrl",
+                "thumbnailUrl",
+            ],
+        });
+
+        if (!video) {
+            return res.status(404).json({
+                success: false,
+                message: "Video not found",
+            });
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                videoId: video.id,
+                title: video.title,
+                hlsStatus: video.hlsStatus,
+                hlsUrl: video.hlsUrl,
+                videoUrl: video.videoUrl,
+                thumbnailUrl: video.thumbnailUrl,
+                isReady: video.hlsStatus === "completed",
+            },
+        });
+    } catch (error) {
+        console.error("Get HLS status error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get HLS status",
+        });
+    }
+};
