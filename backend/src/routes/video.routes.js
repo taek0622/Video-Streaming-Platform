@@ -25,4 +25,7 @@ router.put("/:id", requireAuth, videoConntroller.updateVideo);
 // 영상 삭제 (로그인 필수, 본인만)
 router.delete("/:id", requireAuth, videoConntroller.deleteVideo);
 
+// HLS 상태 확인
+router.get("/:id/hls-status", videoConntroller.getHLSStatus);
+
 module.exports = router;
