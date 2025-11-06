@@ -1,10 +1,22 @@
 const { Video } = require("../models");
 const path = require("path");
 const fs = require("fs").promises;
+const { v4: uuidv4 } = require("uuid");
+const {
+    convertToHLS,
+    convertToHLSFast,
+    getVideoInfo,
+    generateThumbnail,
+    convertToAdaptiveHLS,
+} = require("../utils/ffmpeg");
 
-// 영상 파일 업로드
-// POST /api/upload/video
+/**
+ * 영상 파일 업로드 (HLS fMP4 변환 포함)
+ * POST /api/upload/video
+ */
 exports.uploadVideoFile = async (req, res) => {
+    let video = null;
+
     try {
         if (!req.file) {
             return res.status(400).json({
@@ -13,7 +25,12 @@ exports.uploadVideoFile = async (req, res) => {
             });
         }
 
-        const { title, description } = req.body;
+        const {
+            title,
+            description,
+            quality = "single", // quality: 'single' (단일 화질) or 'adaptive' (다중 화질)
+            keepOriginal = "false", // 원본 유지 여부 (기본: 삭제)
+        } = req.body;
 
         if (!title) {
             // 업로드된 파일 삭제
@@ -26,20 +43,15 @@ exports.uploadVideoFile = async (req, res) => {
 
         // 파일 정보
         const videoUrl = `/uploads/videos/${req.file.filename}`;
-        const fileSize = req.file.size;
-        const mimeType = req.file.mimetype;
 
-        // TODO: 영상 길이(duration) 추출 (ffmpeg 필요, 나중에 구현)
-        // const duration = await getVideoDuration(req.file.path);
-
-        // 영상 메타데이터 저장
-        const video = await Video.create({
+        // 영상 메타데이터 저장 (HLS 변환 전)
+        video = await Video.create({
             title,
             description: description || "",
             videoType: "vod",
             videoUrl,
             uploaderId: req.user.id,
-            duration: null, // 나중에 ffmpeg로 추출
+            hlsStatus: "processing", // HLS 변환 중
         });
 
         return res.status(201).json({
@@ -49,12 +61,22 @@ exports.uploadVideoFile = async (req, res) => {
                     id: video.id,
                     title: video.title,
                     videoUrl: video.videoUrl,
-                    fileSize,
-                    mimeType,
+                    hlsStatus: "processing",
+                    message:
+                        "Video uploaded. HLS (fMP4) conversion in progress...",
                 },
             },
-            message: "Video uploaded successfully",
+            message: "Video uploaded successfully. Converting to HLS (fMP4)...",
         });
+
+        // 백그라운드에서 HLS 변환 및 썸네일 생성
+        const shouldKeepOriginal = keepOriginal === "true";
+        processVideoInBackground(
+            video.id,
+            req.file.path,
+            quality,
+            shouldKeepOriginal
+        );
     } catch (error) {
         console.error("Upload video error:", error);
 
@@ -65,6 +87,10 @@ exports.uploadVideoFile = async (req, res) => {
             } catch (unlinkError) {
                 console.error("Failed to delete file:", unlinkError);
             }
+        }
+
+        if (video) {
+            await video.update({ hlsStatus: "failed" });
         }
 
         return res.status(500).json({
@@ -78,8 +104,10 @@ exports.uploadVideoFile = async (req, res) => {
     }
 };
 
-// 썸네일 업로드
-// POST /api/upload/thumbnail
+/**
+ * 썸네일 업로드
+ * POST /api/upload/thumbnail
+ */
 exports.uploadThumbnailFile = async (req, res) => {
     try {
         if (!req.file) {
@@ -111,6 +139,15 @@ exports.uploadThumbnailFile = async (req, res) => {
         }
 
         if (video.uploaderId !== req.user.id) {
+            await fs.unlink(req.file.path);
+            return res.status(403).json({
+                success: false,
+                message: "You do not have permission to update this video",
+            });
+        }
+
+        // 기존 썸네일 삭제
+        if (video.thumbnailUrl) {
             const oldThumbnailPath = path.join(
                 __dirname,
                 "../../",
@@ -157,9 +194,13 @@ exports.uploadThumbnailFile = async (req, res) => {
     }
 };
 
-// 영상 + 썸네일 동시 업로드
-// POST /api/upload/video-with-thumbnail
+/**
+ * 영상 + 썸네일 동시 업로드
+ * POST /api/upload/video-with-thumbnail
+ */
 exports.uploadVideoWithThumbnail = async (req, res) => {
+    let video = null;
+
     try {
         if (!req.files || !req.files.video) {
             return res.status(400).json({
@@ -168,10 +209,15 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
             });
         }
 
-        const { title, description } = req.body;
+        const {
+            title,
+            description,
+            quality = "single",
+            keepOriginal = "false",
+        } = req.body;
 
         if (!title) {
-            // 업로르된 파일들 삭제
+            // 업로드된 파일들 삭제
             if (req.files.video) await fs.unlink(req.files.video[0].path);
             if (req.files.thumbnail)
                 await fs.unlink(req.files.thumbnail[0].path);
@@ -200,6 +246,7 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
             videoUrl,
             thumbnailUrl,
             uploaderId: req.user.id,
+            hlsStatus: "processing",
         });
 
         return res.status(201).json({
@@ -210,12 +257,21 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
                     title: video.title,
                     videoUrl: video.videoUrl,
                     thumbnailUrl: video.thumbnailUrl,
-                    fileSize: videoFile.size,
-                    mimeType: videoFile.mimetype,
+                    hlsStatus: "processing",
                 },
             },
-            message: "Video and thumbnail uploaded successfully",
+            message:
+                "Video and thumbnail uploaded. Converting to HLS (fMP4)...",
         });
+
+        // 백그라운드 처리
+        const shouldKeepOriginal = keepOriginal === "true";
+        processVideoInBackground(
+            video.id,
+            videoFile.path,
+            quality,
+            shouldKeepOriginal
+        );
     } catch (error) {
         console.error("Upload video with thumbnail error:", error);
 
@@ -228,6 +284,10 @@ exports.uploadVideoWithThumbnail = async (req, res) => {
             } catch (unlinkError) {
                 console.error("Failed to delete files:", unlinkError);
             }
+        }
+
+        if (video) {
+            await video.update({ hlsStatus: "failed" });
         }
 
         return res.status(500).json({
