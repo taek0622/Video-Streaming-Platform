@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Live Stream Player with Chat</title>
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                background: #0f0f0f;
+                color: white;
+            }
+            .container {
+                display: flex;
+                height: 100vh;
+                padding: 20px;
+                gap: 20px;
+            }
+            .player-section {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .controls {
+                background: #1a1a1a;
+                padding: 20px;
+                border-radius: 10px;
+            }
+            .controls input {
+                width: 200px;
+                padding: 10px;
+                margin-right: 10px;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                color: white;
+                border-radius: 5px;
+            }
+            .controls button {
+                padding: 10px 20px;
+                background: #cc0000;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            .controls button:hover {
+                background: #ff0000;
+            }
+            #status {
+                padding: 10px;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            .live {
+                background: #065f46;
+                color: #d1fae5;
+            }
+            .offline {
+                background: #7f1d1d;
+                color: #fecaca;
+            }
+            .video-container {
+                flex: 1;
+                background: black;
+                border-radius: 10px;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 400px;
+            }
+            video {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            }
+            .chat-section {
+                width: 400px;
+                display: flex;
+                flex-direction: column;
+                background: #1a1a1a;
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .chat-header {
+                padding: 20px;
+                background: #2a2a2a;
+                border-bottom: 1px solid #3a3a3a;
+            }
+            #messages {
+                flex: 1;
+                overflow-y: auto;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .message {
+                padding: 10px;
+                background: #2a2a2a;
+                border-radius: 8px;
+                animation: fadeIn 0.3s;
+            }
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .system {
+                background: #1e3a8a;
+                color: #bfdbfe;
+                font-style: italic;
+            }
+            .error {
+                background: #7f1d1d;
+                color: #fecaca;
+            }
+            .message strong {
+                color: #60a5fa;
+            }
+            .message small {
+                color: #9ca3af;
+                font-size: 11px;
+            }
+            .chat-input {
+                padding: 20px;
+                background: #2a2a2a;
+                border-top: 1px solid #3a3a3a;
+                display: flex;
+                gap: 10px;
+            }
+            .chat-input input {
+                flex: 1;
+                padding: 12px;
+                background: #1a1a1a;
+                border: 1px solid #3a3a3a;
+                color: white;
+                border-radius: 5px;
+            }
+            .chat-input button {
+                padding: 12px 24px;
+                background: #cc0000;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            .chat-input button:hover {
+                background: #ff0000;
+            }
+            .chat-input button:disabled {
+                background: #4a4a4a;
+                cursor: not-allowed;
+            }
+            .viewer-count {
+                color: #9ca3af;
+                font-size: 14px;
+            }
+            .loading {
+                color: #9ca3af;
+                text-align: center;
+                padding: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="contianer">
+            <!-- Player Section -->
+            <div class="player-section">
+                <div class="controls">
+                    <h2>Live Stream Player</h2>
+                    <div style="margin-top: 15px">
+                        <label>Video ID:</label>
+                        <input type="number" id="videoId" value="15" />
+                        <label>Token:</label>
+                        <input type="text" id="token" placeholder="JWT Token" />
+                        <button onclick="loadStream()">Load Stream</button>
+                    </div>
+                    <div id="status" class="offline">Offline</div>
+                </div>
+
+                <div class="video-container">
+                    <video id="video" controls></video>
+                </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <h3>Live Chat</h3>
+                    <div class="viewer-count" id="viewerCount">0 viewers</div>
+                </div>
+
+                <div id="messages"></div>
+
+                <div class="chat-input">
+                    <input
+                        type="text"
+                        id="messageInput"
+                        placeholder="Send a message..."
+                        onkeypress="handleKeyPress(event)"
+                        disabled
+                    />
+                    <button onclick="sendMessage()" id="sendBtn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const API_URL = "http://localhost:3000";
+            const WS_URL = "ws://localhost:3000/chat";
+
+            let hls = null;
+            let ws = null;
+            let currentVideoId = null;
+            let currentToken = null;
+
+            // 페이지 로드시 Hls.js 확인
+            window.addEventListener("load", () => {
+                if (typeof Hls === "undefined") {
+                    console.error("Hls.js not loaded!");
+                    alert(
+                        "Failed to load video player library. Please refresh the page."
+                    );
+                } else {
+                    console.log("Hls.js loaded successfully");
+                }
+            });
+
+            async function loadStream() {
+                const videoId = document.getElementById("videoId").value;
+                const token = document.getElementById("token").value;
+
+                if (!videoId) {
+                    alert("Please enter Video ID");
+                    return;
+                }
+
+                if (!token) {
+                    alert("Please enter JWT token");
+                    return;
+                }
+
+                currentVideoId = videoId;
+                currentToken = token;
+
+                try {
+                    // 라이브 스트림 정보 조회
+                    console.log("Fetching stream info for video ID:", videoId);
+                    const response = await fetch(
+                        `${API_URL}/api/live/${videoId}`
+                    );
+                    const data = await response.json();
+
+                    console.log("Stream data:", data);
+
+                    if (!data.success) {
+                        alert("Stream not found: " + data.message);
+                        return;
+                    }
+
+                    const stream = data.data.stream;
+
+                    if (!stream.isLive) {
+                        document.getElementById(
+                            "status"
+                        ).textContent = `${stream.title} - Offline`;
+                        document.getElementById("status").className = "offline";
+                        alert("Stream is not live yet");
+                        return;
+                    }
+
+                    // 스트림 재생
+                    document.getElementById(
+                        "status"
+                    ).textContent = `Live - ${stream.title}`;
+                    document.getElementById("status").className = "live";
+
+                    console.log("Starting playback...");
+                    playStream(stream.playbackUrl);
+
+                    // 채팅 연결
+                    console.log("Connecting to chat...");
+                    connectChat(videoId, token);
+                } catch (error) {
+                    console.error("Load stream error:", error);
+                    alert("Failed to load stream: " + error.message);
+                }
+            }
+
+            function playStream(hlsUrl) {
+                const video = document.getElementById("video");
+
+                console.log("Playing HLS:", hlsUrl);
+
+                // Hls.js 로드 확인
+                if (typeof Hls === "undefined") {
+                    console.error("Hls is not defined");
+                    alert("Video player not loaded. Please refresh the page.");
+                    return;
+                }
+
+                if (Hls.isSupported()) {
+                    console.log("Hls.js is supported");
+
+                    if (hls) {
+                        hls.destroy();
+                    }
+
+                    hls = new HLS({
+                        debug: true, // 디버깅 활성화
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                        liveSyncDurationCount: 3,
+                    });
+
+                    hls.loadSource(hlsUrl);
+                    hls.attachMedia(video);
+
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        console.log("Manifest parsed, playing...");
+                        video.play().catch((e) => {
+                            console.error("Play error:", e);
+                            alert(
+                                "Failed to play video. Click on the video to start."
+                            );
+                        });
+                    });
+
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        console.error("HLS error:", data);
+
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    console.log("Network error, retrying...");
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.log("Media error, recovering...");
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    console.log("Fatal error, cannot recover");
+                                    alert(
+                                        "Stream playback failed. The stream may not be available yet."
+                                    );
+                                    hls.destroy();
+                                    break;
+                            }
+                        }
+                    });
+
+                    hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+                        console.log("Fragment loaded:", data.frag.sn);
+                    });
+                } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+                    console.log("Using native HLS support (Safari)");
+                    video.src = hlsUrl;
+                    video.addEventListener("loadedmetadata", () => {
+                        video.play();
+                    });
+                } else {
+                    alert("Your browser does not suuport HLS playback");
+                }
+            }
+
+            function connectChat(videoId, token) {
+                if (ws) {
+                    ws.close();
+                }
+
+                console.log("Connecting to WebSocket:", WS_URL);
+
+                ws = new WebSocket(WS_URL);
+
+                ws.onopen = () => {
+                    console.log("WebSocket connected");
+
+                    // 방 입장
+                    const joinMessage = {
+                        type: "join",
+                        videoId: parseInt(videoId),
+                        token: token,
+                    };
+
+                    console.log("Sending join message:", joinMessage);
+                    ws.send(JSON.stringify(joinMessage));
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    console.log("Received message:", data);
+                    handleChatMessage(data);
+                };
+
+                ws.onclose = () => {
+                    console.log("WebSocket disconnected");
+                    document.getElementById("messageInput").disabled = true;
+                    document.getElementById("sendBtn").disabled = true;
+
+                    const messagesDiv = document.getElementById("messages");
+                    const messageDiv = document.createElement("div");
+                    messageDiv.className = "message system";
+                    messageDiv.textContent = "Disconnected from chat";
+                    messagesDiv.appendChild(messageDiv);
+                };
+
+                ws.onerror = (error) => {
+                    console.error("WebSocket error:", error);
+                    alert("Failed to connect to chat");
+                };
+            }
+
+            function handleChatMessage(data) {
+                const messagesDiv = document.getElementById("messages");
+                const messageDiv = document.createElement("div");
+                messageDiv.className = "message";
+
+                switch (data.type) {
+                    case "joined":
+                        messageDiv.className += " system";
+                        messageDiv.textContent = `Connected to chat (${data.viewerCount} viewers)`;
+                        document.getElementById(
+                            "viewerCount"
+                        ).textContent = `${data.viewerCount} viewers`;
+                        document.getElementById(
+                            "messageInput"
+                        ).disabled = false;
+                        document.getElementById("sendBtn").disabled = false;
+                        break;
+                    case "system":
+                        messageDiv.className += " system";
+                        messageDiv.textContent = data.message;
+                        if (data.viewerCount !== undefined) {
+                            document.getElementById(
+                                "viewerCount"
+                            ).textContent = `${data.viewerCount} viewers`;
+                        }
+                        break;
+                    case "message":
+                        messageDiv.innerHTML = `
+                        <strong>${data.username}</strong>: ${data.content}
+                        <br><small>${new Date(
+                            data.timestamp
+                        ).toLocaleTimeString()}</small>
+                        `;
+                        break;
+                    case "error":
+                        messageDiv.className += " error";
+                        messageDiv.textContent = `${data.message}`;
+                        break;
+                    default:
+                        console.log("Unknown message type:", data.type);
+                        return;
+                }
+
+                messagesDiv.appendChild(messageDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+
+            function sendMessage() {
+                const input = document.getElementById("messageInput");
+                const content = input.value.trim();
+
+                if (!content) return;
+
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    alert("Not connected to chat");
+                    return;
+                }
+
+                const message = {
+                    type: "message",
+                    content: content,
+                };
+
+                console.log("Sending message:", message);
+                ws.send(JSON.stringify(message));
+
+                input.value = "";
+            }
+
+            function handleKeyPress(event) {
+                if (event.key === "Enter") {
+                    sendMessage();
+                }
+            }
+
+            window.addEventListener("beforeunload", () => {
+                if (ws) {
+                    console.log("Closing WebSocket...");
+                    ws.close();
+                }
+                if (hls) {
+                    console.log("Destroying HLS...");
+                    hls.destroy();
+                }
+            });
+        </script>
+    </body>
+</html>
