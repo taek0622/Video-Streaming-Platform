@@ -1,11 +1,19 @@
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
 require("dotenv").config();
 
 const { sequelize, testConnection } = require("./config/database");
 const models = require("./models"); // import model
 
+// 미디어 서버 및 채팅 서버
+const { startMediaServer } = require("./services/mediaServer");
+const { initChatServer } = require("./services/chatServer");
+
 const app = express();
+
+// HTTP 서버 생성 (ws)
+const httpServer = http.createServer(app);
 
 // Middleware
 app.use(cors());
@@ -20,12 +28,14 @@ const authRoutes = require("./routes/auth.routes");
 const videoRoutes = require("./routes/video.routes");
 const commentRoutes = require("./routes/comment.routes");
 const uploadRoutes = require("./routes/upload.routes");
+const liveRoutes = require("./routes/live.routes"); // 추가 예정
 
 // API 라우트
 app.use("/api/auth", authRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api", commentRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/live", liveRoutes); // 추가 예정
 
 // 서버 상태 확인
 app.get("/status", (req, res) => {
@@ -43,6 +53,9 @@ app.get("/", (req, res) => {
         endpoints: {
             auth: "/api/auth",
             status: "/status",
+            videos: "/api/videos",
+            live: "/api/live",
+            upload: "/api/upload",
         },
     });
 });
@@ -102,13 +115,26 @@ const startServer = async () => {
             // await seedTestData();
         }
 
-        // 서버 시작
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+        // HTTP 서버 시작
+        httpServer.listen(PORT, () => {
+            console.log(`HTTP Server is running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV}`);
             console.log(`http://localhost:${PORT}`);
-            console.log(`API Docs: https://localhost:${PORT}/`);
         });
+
+        // WS 채팅 서버 초기화
+        initChatServer(httpServer);
+
+        // Node-Media-Server 시작 (RTMP)
+        startMediaServer();
+
+        // 서버 시작
+        // app.listen(PORT, () => {
+        //     console.log(`Server is running on port ${PORT}`);
+        //     console.log(`Environment: ${process.env.NODE_ENV}`);
+        //     console.log(`http://localhost:${PORT}`);
+        //     console.log(`API Docs: https://localhost:${PORT}/`);
+        // });
     } catch (error) {
         console.error("Failed to start server:", error);
         process.exit(1);
