@@ -5,3 +5,5 @@ uploads/videos/*
 !uploads/videos/.gitkeep
 uploads/videos/hls/*
 !uploads/videos/hls/.gitkeep
+uploads/live/*
+!uploads/live/.gitkeep
