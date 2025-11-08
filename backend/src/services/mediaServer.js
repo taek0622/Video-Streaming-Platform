@@ -2,6 +2,7 @@ const NodeMediaServer = require("node-media-server");
 const { Video } = require("../models");
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 // const { execSync } = require("child_process");
 
 // uploads/live 디렉토리 확인 및 생성
@@ -14,12 +15,8 @@ if (!fs.existsSync(liveDir)) {
 // FFmpeg 경로 자동 감지
 let ffmpegPath = "/opt/homebrew/bin/ffmpeg"; // 기본값
 
-// try {
-//     ffmpegPath = execSync("which ffmpeg").toString().trim();
-//     console.log("FFmpeg found at:", ffmpegPath);
-// } catch (error) {
-//     console.warn("Could not auto-detect ffmpeg, using default path");
-// }
+// 활성 FFmpeg 프로세스 관리
+const activeStreams = new Map(); // streamKey -> ffmpeg process
 
 const config = {
     logType: 3, // 0-fatal, 1-error, 2-warn, 3-info (모든 로그 출력)
@@ -36,27 +33,28 @@ const config = {
         allow_origin: "*",
         mediaroot: path.join(__dirname, "../../uploads"),
     },
-    trans: {
-        ffmpeg: ffmpegPath,
-        task: [
-            {
-                app: "live",
-                hls: true,
-                hlsFlags:
-                    // "[hls_time=2:hls_list_size=3:hls_flags=delete_segments]",
-                    "[hls_time=6:hls_list_size=0]",
-                hlsKeep: true, // 세그먼트 자동 삭제 true로 변경 (디버깅용)
-                dash: false,
-            },
-        ],
-    },
+    // trans: {
+    //     ffmpeg: ffmpegPath,
+    //     task: [
+    //         {
+    //             app: "live",
+    //             hls: true,
+    //             hlsFlags:
+    //                 // "[hls_time=2:hls_list_size=3:hls_flags=delete_segments]",
+    //                 "[hls_time=6:hls_list_size=0]",
+    //             hlsKeep: true, // 세그먼트 자동 삭제 true로 변경 (디버깅용)
+    //             dash: false,
+    //         },
+    //     ],
+    // },
 };
 
 console.log("");
 console.log("=".repeat(80));
 console.log("Node-Media-Server Configuration");
 console.log("=".repeat(80));
-console.log("FFmpeg Path:", config.trans.ffmpeg);
+// console.log("FFmpeg Path:", config.trans.ffmpeg);
+console.log("FFmpeg Path:", ffmpegPath);
 console.log("Media Root:", config.http.mediaroot);
 console.log("Live Directory:", liveDir);
 console.log("Log Type:", config.logType);
@@ -65,6 +63,117 @@ console.log("");
 
 // node-media-server 인스턴스 생성
 const nms = new NodeMediaServer(config);
+
+/**
+ * FFmpeg로 RTMP -> HLS 변환 시작
+ */
+function startHLSConversion(streamKey) {
+    if (activeStreams.has(streamKey)) {
+        console.log(`HLS conversion already running for ${streamKey}`);
+        return;
+    }
+
+    const streamDir = path.join(liveDir, streamKey);
+    const rtmpUrl = `rtmp://localhost:1935/live/${streamKey}`;
+    const playlistPath = path.join(streamDir, "index.m3u8");
+    const segmentPattern = path.join(streamDir, "seg_%03d.m4s");
+
+    console.log("");
+    console.log("=".repeat(80));
+    console.log("Starting HLS Conversion");
+    console.log("=".repeat(80));
+    console.log("Stream Key:", streamKey);
+    console.log("RTMP URL:", rtmpUrl);
+    console.log("Output Directory:", streamDir);
+    console.log("Playlist:", playlistPath);
+    console.log("=".repeat(80));
+    console.log("");
+
+    // FFmpeg 프로세스 시작
+    const ffmpeg = spawn(
+        ffmpegPath,
+        [
+            "-i",
+            rtmpUrl,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "copy",
+            "-f",
+            "hls",
+            "-hls_time",
+            "6",
+            "-hls_list_size",
+            "10",
+            "-hls_flags",
+            "delete_segments+append_list",
+            "-hls_segment_filename",
+            segmentPattern,
+            playlistPath,
+        ],
+        {
+            env: {
+                ...process.env,
+                PATH: process.env.PATH + ":/opt/homebrew/bin:/user/local/bin",
+            },
+        }
+    );
+
+    activeStreams.set(streamKey, ffmpeg);
+
+    ffmpeg.stdout.on("data", (data) => {
+        console.log(`[FFmpeg ${streamKey}] ${data}`);
+    });
+
+    ffmpeg.stderr.on("data", (data) => {
+        const message = data.toString();
+        // FFmpeg는 대부분 stderr로 출력
+        if (message.includes("frame=") || message.includes("time=")) {
+            // 진행 상황 로그는 간단히
+            process.stdout.write(`[FFmpeg ${streamKey}] Converting...\r`);
+        } else {
+            console.log(`[FFmpeg ${streamKey}] ${message}`);
+        }
+    });
+
+    ffmpeg.on("close", (code) => {
+        console.log("");
+        console.log(`[FFmpeg ${streamKey}] Process exited with code ${code}`);
+        activeStreams.delete(streamKey);
+    });
+
+    ffmpeg.on("error", (error) => {
+        console.error(`[FFmpeg ${streamKey}] Error:`, error);
+        activeStreams.delete(streamKey);
+    });
+
+    // 5초 후 파일 생성 확인
+    setTimeout(() => {
+        if (fs.existsSync(streamDir)) {
+            const files = fs.readdirSync(streamDir);
+            console.log("");
+            console.log(`[${streamKey}] HLS files created:`, files);
+            console.log(
+                `[${streamKey}] Playback URL: http://localhost:8888/live/${streamKey}/index.m3u8`
+            );
+            console.log("");
+        } else {
+            console.log(`[${streamKey}] Warning: HLS directory not found`);
+        }
+    }, 5000);
+}
+
+/**
+ * FFmpeg 프로세스 종료
+ */
+function stopHLSConversion(streamKey) {
+    const ffmpeg = activeStreams.get(streamKey);
+    if (ffmpeg) {
+        console.log(`Stopping HLS conversion for ${streamKey}`);
+        ffmpeg.kill("SIGTERM");
+        activeStreams.delete(streamKey);
+    }
+}
 
 // 모든 이벤트 로깅
 nms.on("preConnect", (id, args) => {
@@ -127,6 +236,14 @@ nms.on("prePublish", async (id, StreamPath, args) => {
         }
 
         console.log("Valid stream key for video:", video.title);
+
+        // 중요: 스트림 키별 디렉토리 생성
+        const streamDir = path.join(liveDir, streamKey);
+        if (!fs.existsSync(streamDir)) {
+            fs.mkdirSync(streamDir, { recursive: true });
+            console.log("Created stream directory:", streamDir);
+        }
+
         await video.update({ isLive: true });
         // console.log("Stream authorized, starting broadcast...");
         console.log("Video marked as live");
@@ -146,10 +263,13 @@ nms.on("prePublish", async (id, StreamPath, args) => {
 // 스트림 게시 시작됨 (인증 통과 후)
 nms.on("postPublish", async (id, StreamPath, args) => {
     const session = id;
+    const streamKey = session.streamName;
+
     console.log("");
     // console.log("STREAM STARTED");
     console.log("[postPublish] STREAM BROADCASTING");
-    console.log("Stream Name:", session.streamName);
+    // console.log("Stream Name:", session.streamName);
+    console.log("Stream Name:", streamKey);
     // console.log(
     //     "HLS URL: http://localhost:8888/live/" +
     //         session.streamName +
@@ -159,24 +279,28 @@ nms.on("postPublish", async (id, StreamPath, args) => {
     //     "HLS Path:",
     //     path.join(__dirname, "../../uploads/live/", session.streamName)
     // );
-    console.log(
-        "Expected HLS URL:",
-        `http://localhost:8888/live/${session.streamName}/index.m3u8`
-    );
-    console.log("Expected HLS Path:", path.join(liveDir, session.streamName));
+    // console.log(
+    //     "Expected HLS URL:",
+    //     `http://localhost:8888/live/${session.streamName}/index.m3u8`
+    // );
+    // console.log("Expected HLS Path:", path.join(liveDir, session.streamName));
     console.log("");
 
     // 5초 후 디렉토리 확인
+    // setTimeout(() => {
+    //     const streamDir = path.join(liveDir, session.streamName);
+    //     if (fs.existsSync(streamDir)) {
+    //         const files = fs.readdirSync(streamDir);
+    //         console.log("HLS files created:", files);
+    //     } else {
+    //         console.log("HLS directory not created:", streamDir);
+    //         console.log("Check FFmpeg path and permissions!");
+    //     }
+    // }, 5000);
+    // HLS 변환 시작
     setTimeout(() => {
-        const streamDir = path.join(liveDir, session.streamName);
-        if (fs.existsSync(streamDir)) {
-            const files = fs.readdirSync(streamDir);
-            console.log("HLS files created:", files);
-        } else {
-            console.log("HLS directory not created:", streamDir);
-            console.log("Check FFmpeg path and permissions!");
-        }
-    }, 5000);
+        startHLSConversion(streamKey);
+    }, 1000); // 1초 대기 후 시작 (RTMP 스트림 안정화)
 });
 
 // 스트림 종료 이벤트
@@ -187,13 +311,19 @@ nms.on("donePublish", async (id, StreamPath, args) => {
     // console.log("=".repeat(80));
 
     const session = id;
+    const streamKey = session.streamName;
+
     console.log("");
     console.log("[donePublish] STREAM ENDED");
     // console.log("Session ID:", session.id);
-    console.log("Stream Name:", session.streamName);
+    // console.log("Stream Name:", session.streamName);
+    console.log("Stream Name:", streamKey);
     console.log("");
 
-    const streamKey = session.streamName;
+    // HLS 변환 중지
+    stopHLSConversion(streamKey);
+
+    // const streamKey = session.streamName;
     if (streamKey) {
         try {
             const video = await Video.findOne({
@@ -219,35 +349,35 @@ nms.on("donePublish", async (id, StreamPath, args) => {
 });
 
 // Transcode 시작
-nms.on("preConvert", (id, StreamPath, args) => {
-    console.log("");
-    // console.log("TRANSCODE STARTING");
-    console.log("[preConvert] HLS TRANSCODING STARTING");
-    console.log("ID:", id);
-    console.log("Stream Path:", StreamPath);
-    console.log("Args:", args);
-    console.log("");
-});
+// nms.on("preConvert", (id, StreamPath, args) => {
+//     console.log("");
+//     // console.log("TRANSCODE STARTING");
+//     console.log("[preConvert] HLS TRANSCODING STARTING");
+//     console.log("ID:", id);
+//     console.log("Stream Path:", StreamPath);
+//     console.log("Args:", args);
+//     console.log("");
+// });
 
-// Transcode 완료
-nms.on("postConvert", (id, StreamPath, args) => {
-    console.log("");
-    // console.log("TRANSCODE COMPLETED");
-    console.log("[postConvert] HLS TRANSCODING COMPLETED");
-    console.log("ID:", id);
-    console.log("Stream Path:", StreamPath);
-    console.log("");
-});
+// // Transcode 완료
+// nms.on("postConvert", (id, StreamPath, args) => {
+//     console.log("");
+//     // console.log("TRANSCODE COMPLETED");
+//     console.log("[postConvert] HLS TRANSCODING COMPLETED");
+//     console.log("ID:", id);
+//     console.log("Stream Path:", StreamPath);
+//     console.log("");
+// });
 
-// Transcode 실패
-nms.on("doneConvert", (id, StreamPath, args) => {
-    console.log("");
-    // console.log("TRANSCODE ENDED");
-    console.log("[doneConvert] HLS TRANSCODING FINISHED");
-    console.log("ID:", id);
-    console.log("Stream Path:", StreamPath);
-    console.log("");
-});
+// // Transcode 실패
+// nms.on("doneConvert", (id, StreamPath, args) => {
+//     console.log("");
+//     // console.log("TRANSCODE ENDED");
+//     console.log("[doneConvert] HLS TRANSCODING FINISHED");
+//     console.log("ID:", id);
+//     console.log("Stream Path:", StreamPath);
+//     console.log("");
+// });
 
 module.exports = {
     nms,
@@ -260,15 +390,36 @@ module.exports = {
 
         // FFmpeg 확인
         const { execSync } = require("child_process");
+
+        // FFmpeg 경로 자동 감지 시도
         try {
-            const ffmpegVersion = execSync(`${config.trans.ffmpeg} -version`)
+            ffmpegPath = execSync("which ffmpeg").toString().trim();
+            console.log("FFmpeg found at:", ffmpegPath);
+        } catch (error) {
+            console.log("Using default FFmpeg path:", ffmpegPath);
+        }
+
+        // FFmpeg 버전 확인
+        try {
+            // const ffmpegVersion = execSync(`${ffmpegPath} -version`)
+            //     .toString()
+            //     .split("\n")[0];
+            const ffmpegVersion = execSync(`"${ffmpegPath}" -version`, {
+                env: {
+                    ...process.env,
+                    PATH: process.env.PATH + ":/opt/homebrew/bin:/ur/local/bin",
+                },
+            })
                 .toString()
                 .split("\n")[0];
-            console.log("FFmpeg:", ffmpegVersion);
+            console.log("FFmpeg version:", ffmpegVersion);
         } catch (error) {
-            console.error("FFmpeg not found at:", config.trans.ffmpeg);
-            console.error("Please update the ffmpeg path in mediaServer.js");
-            process.exit(1);
+            // console.error("FFmpeg not found at:", config.trans.ffmpeg);
+            // console.error("FFmpeg not found at:", ffmpegPath);
+            // console.error("Please update the ffmpeg path in mediaServer.js");
+            // process.exit(1);
+            console.error("FFmpeg check failed:", error.message);
+            console.error("Trying to start anyway...");
         }
 
         // 디렉토리 확인
@@ -291,5 +442,21 @@ module.exports = {
         // console.log(`Log Type: ${config.logType} (3=info, all logs)`);
         console.log("=".repeat(80));
         console.log("");
+
+        // 프로세스 종료 시 모든 FFmpeg 프로세스 정리
+        process.on("exit", () => {
+            console.log("Cleaning up FFmpeg processes...");
+            activeStreams.forEach((ffmpeg, streamKey) => {
+                stopHLSConversion(streamKey);
+            });
+        });
+
+        process.on("SIGINT", () => {
+            console.log("Received SIGINT, shutting down...");
+            activeStreams.forEach((ffmpeg, streamKey) => {
+                stopHLSConversion(streamKey);
+            });
+            process.exit(0);
+        });
     },
 };
