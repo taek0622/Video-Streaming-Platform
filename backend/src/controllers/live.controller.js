@@ -48,7 +48,7 @@ exports.startLive = async (req, res) => {
                     streamKeyToUse: streamKey,
                     fullRtmpUrl: `rtmp://localhost:1935/live/${streamKey}`,
                     // HLS 재생 ULR (시청자용)
-                    playbackUrl: `http://localhost:8888/live/${streamKey}/index.m3u8`,
+                    playbackUrl: `http://localhost:3000/live/${streamKey}/index.m3u8`,
                 },
             },
             message: "Live stream created. Use the stream key in OBS.",
@@ -98,7 +98,7 @@ exports.getLiveStreams = async (req, res) => {
             return {
                 ...videoJson,
                 viewerCount: getViewerCount(video.id),
-                playbackUrl: `http://localhost:8888/live/${video.streamKey}/index.m3u8`,
+                playbackUrl: `http://localhost:3000/live/${video.streamKey}/index.m3u8`,
             };
         });
 
@@ -167,7 +167,7 @@ exports.getAllLivesStreams = async (req, res) => {
                 ...videoJson,
                 viewerCount: video.isLive ? getViewerCount(video.id) : 0,
                 playbackUrl: video.isLive
-                    ? `http://localhost:8888/live/${video.streamKey}/index.m3u8`
+                    ? `http://localhost:3000/live/${video.streamKey}/index.m3u8`
                     : null,
             };
         });
@@ -237,7 +237,7 @@ exports.getLiveDetail = async (req, res) => {
                     views: video.views + (video.isLive ? 1 : 0),
                     viewerCount: video.isLive ? getViewerCount(video.id) : 0,
                     playbackUrl: video.isLive
-                        ? `http://localhost:8888/live/${video.streamKey}/index.m3u8`
+                        ? `http://localhost:3000/live/${video.streamKey}/index.m3u8`
                         : null,
                     status: video.isLive ? "live" : "offline",
                 },
@@ -393,7 +393,7 @@ exports.getMyStreams = async (req, res) => {
                 ...videoJson,
                 viewerCount: video.isLive ? getViewerCount(video.id) : 0,
                 playbackUrl: video.isLive
-                    ? `http://localhost:8888/live/${video.streamKey}/index.m3u8`
+                    ? `http://localhost:3000/live/${video.streamKey}/index.m3u8`
                     : null,
                 rtmpUrl: `rtmp://localhost:1935/live/${video.streamKey}`,
             };
