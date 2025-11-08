@@ -171,6 +171,14 @@
                 text-align: center;
                 padding: 20px;
             }
+            .debug-info {
+                background: #1a1a1a;
+                padding: 10px;
+                margin-top: 10px;
+                border-radius: 5px;
+                font-size: 12px;
+                color: #9ca3af;
+            }
         </style>
     </head>
     <body>
@@ -187,6 +195,9 @@
                         <button onclick="loadStream()">Load Stream</button>
                     </div>
                     <div id="status" class="offline">Offline</div>
+                    <div class="debug-info" id="debugInfo">
+                        Hls.js version: Loading...
+                    </div>
                 </div>
 
                 <div class="video-container">
@@ -227,13 +238,23 @@
 
             // 페이지 로드시 Hls.js 확인
             window.addEventListener("load", () => {
+                const debugInfo = document.getElementById("debugInfo");
+
                 if (typeof Hls === "undefined") {
                     console.error("Hls.js not loaded!");
+                    debugInfo.innerHTML = "Hls.js failed to load!";
+                    debugInfo.style.background = "#7f1d1d";
                     alert(
                         "Failed to load video player library. Please refresh the page."
                     );
                 } else {
-                    console.log("Hls.js loaded successfully");
+                    console.log(
+                        "Hls.js loaded successfully, version:",
+                        Hls.version
+                    );
+                    debugInfo.innerHTML = `Hls.js version: ${
+                        Hls.version
+                    }<br>HLS support: ${Hls.isSupported() ? "Yes" : "No"}`;
                 }
             });
 
@@ -286,7 +307,17 @@
                     ).textContent = `Live - ${stream.title}`;
                     document.getElementById("status").className = "live";
 
-                    console.log("Starting playback...");
+                    console.log("Playback URL:", stream.playbackUrl);
+
+                    // Debug info 업데이트
+                    const debugInfo = document.getElementById("debugInfo");
+                    debugInfo.innerHTML = `
+                    Hls.js version: ${Hls.version}<br>
+                    Stream URL: ${stream.playbackUrl}<br>
+                    Starting playback...
+                    `;
+
+                    // console.log("Starting playback...");
                     playStream(stream.playbackUrl);
 
                     // 채팅 연결
@@ -300,12 +331,14 @@
 
             function playStream(hlsUrl) {
                 const video = document.getElementById("video");
+                const debugInfo = document.getElementById("debugInfo");
 
                 console.log("Playing HLS:", hlsUrl);
 
                 // Hls.js 로드 확인
                 if (typeof Hls === "undefined") {
                     console.error("Hls is not defined");
+                    debugInfo.innerHTML = "Hls.js not loaded";
                     alert("Video player not loaded. Please refresh the page.");
                     return;
                 }
@@ -314,6 +347,7 @@
                     console.log("Hls.js is supported");
 
                     if (hls) {
+                        console.log("Destroying previous HLS instance");
                         hls.destroy();
                     }
 
@@ -324,17 +358,36 @@
                         liveSyncDurationCount: 3,
                     });
 
+                    console.log("Loading source:", hlsUrl);
                     hls.loadSource(hlsUrl);
                     hls.attachMedia(video);
 
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        console.log("Manifest parsed, playing...");
-                        video.play().catch((e) => {
-                            console.error("Play error:", e);
-                            alert(
-                                "Failed to play video. Click on the video to start."
-                            );
-                        });
+                    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                        // console.log("Manifest parsed, playing...");
+                        console.log("Manifest parsed successfully", data);
+                        debugInfo.innerHTML = `
+                        Hls.js version: ${Hls.version}<br>
+                        Manifest loaded<br>
+                        Levels: ${data.levels.length}<br>
+                        Playing...
+                        `;
+
+                        video
+                            .play()
+                            .then(() => console.log("Video playing"))
+                            .catch((e) => {
+                                console.error("Play error:", e);
+                                alert(
+                                    "Failed to play video. Click on the video to start."
+                                );
+                            });
+
+                        // video.play().catch((e) => {
+                        //     console.error("Play error:", e);
+                        //     alert(
+                        //         "Failed to play video. Click on the video to start."
+                        //     );
+                        // });
                     });
 
                     hls.on(Hls.Events.ERROR, (event, data) => {
@@ -344,16 +397,23 @@
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
                                     console.log("Network error, retrying...");
-                                    hls.startLoad();
+                                    debugInfo.innerHTML += "<br>Retrying...";
+                                    setTimeout(() => hls.startLoad(), 1000);
+                                    // hls.startLoad();
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
                                     console.log("Media error, recovering...");
+                                    debugInfo.innerHTML += "<br>Recovering...";
                                     hls.recoverMediaError();
                                     break;
                                 default:
                                     console.log("Fatal error, cannot recover");
+                                    debugInfo.innerHTML += "<br>Cannot recover";
+                                    // alert(
+                                    //     "Stream playback failed. The stream may not be available yet."
+                                    // );
                                     alert(
-                                        "Stream playback failed. The stream may not be available yet."
+                                        "Stream playback failed:" + data.details
                                     );
                                     hls.destroy();
                                     break;
@@ -364,14 +424,20 @@
                     hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
                         console.log("Fragment loaded:", data.frag.sn);
                     });
+
+                    hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
+                        console.log("Level loaded:", data.details);
+                    });
                 } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
                     console.log("Using native HLS support (Safari)");
+                    debugInfo.innerHTML = "Using native HLS (Safari)";
                     video.src = hlsUrl;
                     video.addEventListener("loadedmetadata", () => {
                         video.play();
                     });
                 } else {
                     alert("Your browser does not suuport HLS playback");
+                    debugInfo.innerHTML = "HLS not supported";
                 }
             }
 
@@ -458,7 +524,7 @@
                         break;
                     case "error":
                         messageDiv.className += " error";
-                        messageDiv.textContent = `${data.message}`;
+                        messageDiv.textContent = `Error: ${data.message}`;
                         break;
                     default:
                         console.log("Unknown message type:", data.type);
