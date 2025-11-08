@@ -353,11 +353,13 @@
                         hls.destroy();
                     }
 
-                    hls = new HLS({
+                    hls = new Hls({
                         debug: true, // 디버깅 활성화
                         enableWorker: true,
                         lowLatencyMode: true,
                         liveSyncDurationCount: 3,
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 60,
                     });
 
                     console.log("Loading source:", hlsUrl);
