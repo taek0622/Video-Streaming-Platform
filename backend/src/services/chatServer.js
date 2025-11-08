@@ -60,7 +60,7 @@ const initChatServer = (httpServer) => {
                 }
 
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                const user = await User.findByOk(decoded.id);
+                const user = await User.findByPk(decoded.id);
 
                 if (!user) {
                     sendError(ws, "User not found");
@@ -148,20 +148,20 @@ const initChatServer = (httpServer) => {
                 console.log(
                     `Message from ${
                         currentUser.username
-                    } in video ${currentVideoID}: ${content.substring(0, 50)}`
+                    } in video ${currentVideoId}: ${content.substring(0, 50)}`
                 );
 
                 // 같은 방의 모든 사용자에게 브로드캐스트
                 broadcastToRoom(currentVideoId, chatMessage);
             } catch (error) {
                 console.error("Message error:", error);
-                sendErroe(ws, "Failed to send message");
+                sendError(ws, "Failed to send message");
             }
         }
 
         // 방 퇴장 처리
         function handleLeave(ws) {
-            if (currentVideoId & rooms.has(currentVideoId)) {
+            if (currentVideoId && rooms.has(currentVideoId)) {
                 rooms.get(currentVideoId).delete(ws);
 
                 if (currentUser) {
