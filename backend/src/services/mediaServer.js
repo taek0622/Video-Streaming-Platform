@@ -129,7 +129,7 @@ function startHLSConversion(streamKey) {
         {
             env: {
                 ...process.env,
-                PATH: process.env.PATH + ":/opt/homebrew/bin:/user/local/bin",
+                PATH: process.env.PATH + ":/opt/homebrew/bin:/usr/local/bin",
             },
         }
     );
