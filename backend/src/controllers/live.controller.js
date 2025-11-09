@@ -8,7 +8,7 @@ const { getViewerCount } = require("../services/chatServer");
  */
 exports.startLive = async (req, res) => {
     try {
-        const { title, description } = req.body;
+        const { title, description, saveAsVod = false } = req.body;
 
         if (!title) {
             return res.status(400).json({
@@ -28,11 +28,15 @@ exports.startLive = async (req, res) => {
             streamKey,
             uploaderId: req.user.id,
             isLive: false, // 실제 스트림 시작 전
+            saveAsVod: saveAsVod === true || saveAsVod === "true",
             hlsStatus: null, // 라이브는 HLS 변환 안 함
         });
 
         console.log(`Live stream created: ${video.title} (ID: ${video.id})`);
         console.log(`Stream Key: ${streamKey}`);
+        console.log(
+            `Save as VOD: ${video.saveAsVod ? "YES" : "NO (auto-delete)"}`
+        );
 
         return res.status(201).json({
             success: true,
@@ -43,6 +47,7 @@ exports.startLive = async (req, res) => {
                     description: video.description,
                     streamKey: video.streamKey,
                     isLive: video.isLive,
+                    saveAsVod: video.saveAsVod,
                     // RTMP URL (스트리머가 OBS에 입력)
                     rtmpUrl: `rtmp://localhost:1935/live`,
                     streamKeyToUse: streamKey,
@@ -51,7 +56,11 @@ exports.startLive = async (req, res) => {
                     playbackUrl: `http://localhost:3000/live/${streamKey}/index.m3u8`,
                 },
             },
-            message: "Live stream created. Use the stream key in OBS.",
+            message: `Live stream created. ${
+                video.saveAsVod
+                    ? "Stream will be saved as VOD after ending."
+                    : "Stream will be deleted after ending."
+            }`,
         });
     } catch (error) {
         console.error("Start live error:", error);

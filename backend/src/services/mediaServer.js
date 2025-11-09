@@ -15,7 +15,7 @@ if (!fs.existsSync(liveDir)) {
 let ffmpegPath = "/opt/homebrew/bin/ffmpeg"; // 기본값
 
 // 활성 FFmpeg 프로세스 관리
-const activeStreams = new Map(); // streamKey -> ffmpeg process
+const activeStreams = new Map(); // streamKey -> { process, saveAsVod }
 
 const config = {
     logType: 3, // 0-fatal, 1-error, 2-warn, 3-info (모든 로그 출력)
@@ -51,7 +51,7 @@ const nms = new NodeMediaServer(config);
 /**
  * FFmpeg로 RTMP -> HLS 변환 시작
  */
-function startHLSConversion(streamKey) {
+function startHLSConversion(streamKey, saveAsVod = false) {
     if (activeStreams.has(streamKey)) {
         console.log(`HLS conversion already running for ${streamKey}`);
         return;
@@ -70,55 +70,67 @@ function startHLSConversion(streamKey) {
     console.log("RTMP URL:", rtmpUrl);
     console.log("Output Directory:", streamDir);
     console.log("Playlist:", playlistPath);
+    console.log("Save as VOD:", saveAsVod ? "YES" : "NO (auto-delete)");
     console.log("=".repeat(80));
     console.log("");
 
-    // FFmpeg 프로세스 시작
-    const ffmpeg = spawn(
-        ffmpegPath,
-        [
-            "-i",
-            rtmpUrl,
-            "-c:v",
-            "copy",
-            "-c:a",
-            "copy",
-            "-f",
-            "hls",
-            "-hls_time",
-            "6",
-            "-hls_list_size",
-            "10",
-            "-hls_segment_type",
-            "fmp4",
-            "-hls_fmp4_init_filename",
-            "init.mp4",
-            "-hls_flags",
-            "delete_segments+independent_segments",
-            "-hls_segment_filename",
-            segmentPattern,
-            "-g",
-            "60",
-            "-sc_threshold",
-            "0",
-            "-start_at_zero",
-            "-vsync",
-            "cfr",
-            "-avoid_negative_ts",
-            "make_zero",
-            "-fflags",
-            "+genpts",
-            playlistPath,
-        ],
-        {
-            env: {
-                ...process.env,
-                PATH: process.env.PATH + ":/opt/homebrew/bin:/usr/local/bin",
-            },
-        }
-    );
+    // FFmpeg 옵션 설정
+    const ffmpegArgs = [
+        "-i",
+        rtmpUrl,
+        "-c:v",
+        "copy",
+        "-c:a",
+        "copy",
+        "-f",
+        "hls",
+        "-hls_time",
+        "6",
+        "-hls_segment_type",
+        "fmp4",
+        "-hls_fmp4_init_filename",
+        "init.mp4",
+        "-hls_segment_filename",
+        segmentPattern,
+        "-g",
+        "60",
+        "-sc_threshold",
+        "0",
+        "-start_at_zero",
+        "-vsync",
+        "cfr",
+        "-avoid_negative_ts",
+        "make_zero",
+        "-fflags",
+        "+genpts",
+    ];
 
-    activeStreams.set(streamKey, ffmpeg);
+    // VOD 저장 여부에 따라 옵션 변경
+    if (saveAsVod) {
+        // VOD로 저장: 모든 세그먼트 유지
+        ffmpegArgs.push("-hls_list_size", "0");
+        ffmpegArgs.push("-hls_flags", "independent_segments");
+        console.log("[Mode] VOD Recording - All segments will be kept");
+    } else {
+        // 라이브 전용: 최근 10개만 유지
+        ffmpegArgs.push("-hls_list_size", "10");
+        ffmpegArgs.push("-hls_flags", "delete_segments+independent_segments");
+        console.log(
+            "[Mode] Live Only - Old segments will be automatically deleted"
+        );
+    }
+
+    ffmpegArgs.push(playlistPath);
+
+    // FFmpeg 프로세스 시작
+    const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
+        env: {
+            ...process.env,
+            PATH: process.env.PATH + ":/opt/homebrew/bin:/usr/local/bin",
+        },
+    });
+
+    activeStreams.set(streamKey, { process: ffmpeg, saveAsVod });
 
     ffmpeg.stdout.on("data", (data) => {
         console.log(`[FFmpeg ${streamKey}] ${data}`);
@@ -163,14 +175,104 @@ function startHLSConversion(streamKey) {
 }
 
 /**
- * FFmpeg 프로세스 종료
+ * FFmpeg 프로세스 종료 및 후처리
  */
 function stopHLSConversion(streamKey) {
-    const ffmpeg = activeStreams.get(streamKey);
-    if (ffmpeg) {
-        console.log(`Stopping HLS conversion for ${streamKey}`);
-        ffmpeg.kill("SIGTERM");
-        activeStreams.delete(streamKey);
+    const streamData = activeStreams.get(streamKey);
+    if (!streamData) return;
+
+    const { process: ffmpeg, saveAsVod } = streamData;
+    console.log(`Stopping HLS conversion for ${streamKey}`);
+    ffmpeg.kill("SIGTERM");
+    activeStreams.delete(streamKey);
+
+    // 스트림 종료 후 처리
+    if (!saveAsVod) {
+        // VOD로 저장하지 않는 경우: 모든 파일 삭제
+        console.log(
+            `[${streamKey}] Not saving as VOD - Deleting all HLS files...`
+        );
+
+        setTimeout(async () => {
+            const streamDir = path.join(liveDir, streamKey);
+
+            try {
+                if (fs.existsSync(streamDir)) {
+                    const files = fs.readdirSync(streamDir);
+                    console.log(
+                        `[${streamKey}] Deleting ${files.length} files...`
+                    );
+
+                    for (const file of files) {
+                        const filePath = path.join(streamDir, file);
+                        fs.unlinkSync(filePath);
+                    }
+
+                    fs.rmdirSync(streamDir);
+                    console.log(`[${streamKey}] All HLS files deleted`);
+                } else {
+                    console.log(`[${streamKey}] Stream directory not found`);
+                }
+            } catch (error) {
+                console.error(`[${streamKey}] Failed to deelte files:`, error);
+            }
+        }, 2000);
+    } else {
+        // VOD로 저장하는 경우: 파일 유지 및 DB 업데이트
+        console.log(`[${streamKey}] Saving as VOD - Keeping HLS files`);
+
+        setTimeout(async () => {
+            try {
+                const video = await Video.findOne({
+                    where: { streamKey, videoType: "live" },
+                });
+
+                if (video) {
+                    const hlsUrl = `/live/${streamKey}/index.m3u8`;
+
+                    await video.update({
+                        hlsUrl: hlsUrl,
+                        hlsStatus: "completed",
+                        videoType: "vod",
+                    });
+
+                    console.log(
+                        `[${streamKey}] Stream saved as VOD (Video ID: ${video.id})`
+                    );
+                    console.log(
+                        `[${streamKey}] VOD URL: http://localhost:3000${hlsUrl}`
+                    );
+
+                    // 영상 메타데이터 추출 시도
+                    const { getVideoInfo } = require("../utils/ffmpeg");
+                    try {
+                        const playlistPath = path.join(
+                            liveDir,
+                            streamKey,
+                            "index.m3u8"
+                        );
+                        const videoInfo = await getVideoInfo(playlistPath);
+
+                        await video.update({
+                            duration: videoInfo.duration || null,
+                            width: videoInfo.width || null,
+                            height: videoInfo.height || null,
+                        });
+
+                        console.log(
+                            `[${streamKey}] Video metadata updated: ${videoInfo.duration}s, ${videoInfo.width}x${videoInfo.height}`
+                        );
+                    } catch (error) {
+                        console.log(
+                            `[${streamKey}] Could not extract video metadata:`,
+                            error.message
+                        );
+                    }
+                }
+            } catch (error) {
+                console.log(`[${streamKey}] Failed to save as VOD:`, error);
+            }
+        }, 2000);
     }
 }
 
@@ -253,10 +355,27 @@ nms.on("postPublish", async (id, StreamPath, args) => {
     console.log("Stream Name:", streamKey);
     console.log("");
 
-    // HLS 변환 시작
-    setTimeout(() => {
-        startHLSConversion(streamKey);
-    }, 1000); // 1초 대기 후 시작 (RTMP 스트림 안정화)
+    // DB에서 saveAsVod 설정 가져오기
+    try {
+        const video = await Video.findOne({
+            where: { streamKey, videoType: "live" },
+        });
+
+        if (video) {
+            const saveAsVod = video.saveAsVod;
+
+            // HLS 변환 시작 (saveAsVod 옵션 전달)
+            setTimeout(() => {
+                startHLSConversion(streamKey, saveAsVod);
+            }, 1000); // 1초 대기 후 시작 (RTMP 스트림 안정화)
+        }
+    } catch (error) {
+        console.error("Failed to get saveAsVod option:", error);
+        // 기본값으로 시작
+        setTimeout(() => {
+            startHLSConversion(streamKey, false);
+        }, 1000); // 1초 대기 후 시작 (RTMP 스트림 안정화)
+    }
 });
 
 // 스트림 종료 이벤트

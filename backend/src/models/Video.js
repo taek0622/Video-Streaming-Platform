@@ -48,6 +48,12 @@ module.exports = (sequelize, DataTypes) => {
                 defaultValue: false,
                 field: "is_live",
             },
+            saveAsVod: {
+                type: DataTypes.BOOLEAN,
+                defaultValue: false,
+                field: "save_as_vod",
+                comment: "라이브 종료 후 VOD로 저장할지 여부",
+            },
             // VOD용 필드 - 원본 파일
             videoUrl: {
                 type: DataTypes.STRING(255),
