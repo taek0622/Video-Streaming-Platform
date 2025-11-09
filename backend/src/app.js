@@ -46,7 +46,7 @@ app.use(
 
 // live 폴더 직접 서빙 (CORS 설정 포함)
 app.use(
-    "live",
+    "/live",
     (req, res, next) => {
         console.log("[Static] /live request:", req.path);
 
