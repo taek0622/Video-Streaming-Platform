@@ -3,7 +3,6 @@ const { Video } = require("../models");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
-// const { execSync } = require("child_process");
 
 // uploads/live 디렉토리 확인 및 생성
 const liveDir = path.join(__dirname, "../../uploads/live");
@@ -33,27 +32,12 @@ const config = {
         allow_origin: "*",
         mediaroot: path.join(__dirname, "../../uploads"),
     },
-    // trans: {
-    //     ffmpeg: ffmpegPath,
-    //     task: [
-    //         {
-    //             app: "live",
-    //             hls: true,
-    //             hlsFlags:
-    //                 // "[hls_time=2:hls_list_size=3:hls_flags=delete_segments]",
-    //                 "[hls_time=6:hls_list_size=0]",
-    //             hlsKeep: true, // 세그먼트 자동 삭제 true로 변경 (디버깅용)
-    //             dash: false,
-    //         },
-    //     ],
-    // },
 };
 
 console.log("");
 console.log("=".repeat(80));
 console.log("Node-Media-Server Configuration");
 console.log("=".repeat(80));
-// console.log("FFmpeg Path:", config.trans.ffmpeg);
 console.log("FFmpeg Path:", ffmpegPath);
 console.log("Media Root:", config.http.mediaroot);
 console.log("Live Directory:", liveDir);
@@ -205,11 +189,6 @@ nms.on("doneConnect", (id, args) => {
 
 // 스트림 게시 시작 이벤트
 nms.on("prePublish", async (id, StreamPath, args) => {
-    // console.log("");
-    // console.log("=".repeat(80));
-    // console.log("RTMP PUBLISH ATTEMPT");
-    // console.log("=".repeat(80));
-
     // id는 실제로 session 객체
     const session = id;
 
@@ -223,11 +202,8 @@ nms.on("prePublish", async (id, StreamPath, args) => {
     console.log("Stream App:", session.streamApp);
     console.log("=".repeat(80));
 
-    // streamPath는 session 객체에서 가져오기
-    // const streamPath = session.streamPath;
     // StreamPath 형식: /live/STREAM_KEY
     const streamKey = session.streamName; // 또는 getStreamKeyFromPath(streamPath)
-    // console.log("Extracted Stream Key:", streamKey);
 
     if (!streamKey) {
         console.log("No stream key provided");
@@ -260,16 +236,8 @@ nms.on("prePublish", async (id, StreamPath, args) => {
         }
 
         await video.update({ isLive: true });
-        // console.log("Stream authorized, starting broadcast...");
         console.log("Video marked as live");
-
-        // 라이브 상태로 업데이트
-        // await video.update({ isLive: true });
-
-        // console.log("=".repeat(80));
-        // console.log("");
     } catch (error) {
-        // console.error("Error during stream authentication:", error);
         console.error("Database error:", error);
         session.reject();
     }
@@ -281,37 +249,10 @@ nms.on("postPublish", async (id, StreamPath, args) => {
     const streamKey = session.streamName;
 
     console.log("");
-    // console.log("STREAM STARTED");
     console.log("[postPublish] STREAM BROADCASTING");
-    // console.log("Stream Name:", session.streamName);
     console.log("Stream Name:", streamKey);
-    // console.log(
-    //     "HLS URL: http://localhost:8888/live/" +
-    //         session.streamName +
-    //         "/index.m3u8"
-    // );
-    // console.log(
-    //     "HLS Path:",
-    //     path.join(__dirname, "../../uploads/live/", session.streamName)
-    // );
-    // console.log(
-    //     "Expected HLS URL:",
-    //     `http://localhost:8888/live/${session.streamName}/index.m3u8`
-    // );
-    // console.log("Expected HLS Path:", path.join(liveDir, session.streamName));
     console.log("");
 
-    // 5초 후 디렉토리 확인
-    // setTimeout(() => {
-    //     const streamDir = path.join(liveDir, session.streamName);
-    //     if (fs.existsSync(streamDir)) {
-    //         const files = fs.readdirSync(streamDir);
-    //         console.log("HLS files created:", files);
-    //     } else {
-    //         console.log("HLS directory not created:", streamDir);
-    //         console.log("Check FFmpeg path and permissions!");
-    //     }
-    // }, 5000);
     // HLS 변환 시작
     setTimeout(() => {
         startHLSConversion(streamKey);
@@ -320,25 +261,17 @@ nms.on("postPublish", async (id, StreamPath, args) => {
 
 // 스트림 종료 이벤트
 nms.on("donePublish", async (id, StreamPath, args) => {
-    // console.log("");
-    // console.log("=".repeat(80));
-    // console.log("RTMP STREAM ENDED");
-    // console.log("=".repeat(80));
-
     const session = id;
     const streamKey = session.streamName;
 
     console.log("");
     console.log("[donePublish] STREAM ENDED");
-    // console.log("Session ID:", session.id);
-    // console.log("Stream Name:", session.streamName);
     console.log("Stream Name:", streamKey);
     console.log("");
 
     // HLS 변환 중지
     stopHLSConversion(streamKey);
 
-    // const streamKey = session.streamName;
     if (streamKey) {
         try {
             const video = await Video.findOne({
@@ -350,49 +283,13 @@ nms.on("donePublish", async (id, StreamPath, args) => {
 
             if (video) {
                 await video.update({ isLive: false });
-                // console.log("Video status updated to offline:", video.title);
                 console.log("Video marked as offline");
             }
         } catch (error) {
-            // console.error("Error updating video status:", error);
             console.error("Database error:", error);
         }
     }
-
-    // console.log("=".repeat(80));
-    // console.log("");
 });
-
-// Transcode 시작
-// nms.on("preConvert", (id, StreamPath, args) => {
-//     console.log("");
-//     // console.log("TRANSCODE STARTING");
-//     console.log("[preConvert] HLS TRANSCODING STARTING");
-//     console.log("ID:", id);
-//     console.log("Stream Path:", StreamPath);
-//     console.log("Args:", args);
-//     console.log("");
-// });
-
-// // Transcode 완료
-// nms.on("postConvert", (id, StreamPath, args) => {
-//     console.log("");
-//     // console.log("TRANSCODE COMPLETED");
-//     console.log("[postConvert] HLS TRANSCODING COMPLETED");
-//     console.log("ID:", id);
-//     console.log("Stream Path:", StreamPath);
-//     console.log("");
-// });
-
-// // Transcode 실패
-// nms.on("doneConvert", (id, StreamPath, args) => {
-//     console.log("");
-//     // console.log("TRANSCODE ENDED");
-//     console.log("[doneConvert] HLS TRANSCODING FINISHED");
-//     console.log("ID:", id);
-//     console.log("Stream Path:", StreamPath);
-//     console.log("");
-// });
 
 module.exports = {
     nms,
@@ -416,9 +313,6 @@ module.exports = {
 
         // FFmpeg 버전 확인
         try {
-            // const ffmpegVersion = execSync(`${ffmpegPath} -version`)
-            //     .toString()
-            //     .split("\n")[0];
             const ffmpegVersion = execSync(`"${ffmpegPath}" -version`, {
                 env: {
                     ...process.env,
@@ -429,10 +323,6 @@ module.exports = {
                 .split("\n")[0];
             console.log("FFmpeg version:", ffmpegVersion);
         } catch (error) {
-            // console.error("FFmpeg not found at:", config.trans.ffmpeg);
-            // console.error("FFmpeg not found at:", ffmpegPath);
-            // console.error("Please update the ffmpeg path in mediaServer.js");
-            // process.exit(1);
             console.error("FFmpeg check failed:", error.message);
             console.error("Trying to start anyway...");
         }
@@ -452,9 +342,6 @@ module.exports = {
         console.log("=".repeat(80));
         console.log(`RTMP Server: rtmp://localhost:${config.rtmp.port}/live`);
         console.log(`HTTP Server: http://localhost:${config.http.port}`);
-        // console.log(`FFmpeg: ${ffmpegPath}`);
-        // console.log(`Media Root: ${config.http.mediaroot}`);
-        // console.log(`Log Type: ${config.logType} (3=info, all logs)`);
         console.log("=".repeat(80));
         console.log("");
 
