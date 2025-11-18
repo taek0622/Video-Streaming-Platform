@@ -1,8 +1,479 @@
 const { Video, User, Comment } = require("../models");
-const { Op } = require("sequelize");
+const { Op, fn, col, literal } = require("sequelize");
 
-// 영상 목록 조회 (비로그인 가능)
-// GET /api/videos
+// ==================== 통합 영상 검색 ====================
+/**
+ * 통합 영상 검색 (VOD + Live)
+ * GET /api/videos/search
+ */
+exports.searchVideos = async (req, res) => {
+    try {
+        const {
+            q = "", // 검색어
+            page = 1,
+            limit = 20,
+            sort = "random", // random, created_at, views, title
+            order = "DESC",
+            type = "all", // all, vod, live
+            liveOnly = false, // true면 현재 방송중인 것만
+        } = req.query;
+
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        // 검색 조건 구성
+        const whereClause = {};
+
+        // 타입 필터
+        if (type === "vod") {
+            whereClause.videoType = "vod";
+        } else if (type === "live") {
+            whereClause.videoType = "live";
+        }
+        // type === "all"이면 조건 추가 안 함
+
+        // 현재 방송중만 보기
+        if (liveOnly === "true" || liveOnly === true) {
+            whereClause.isLive = true;
+        }
+
+        // 검색어가 있으면 제목/설명에서 검색
+        if (q && q.trim().length > 0) {
+            const searchTerm = q.trim();
+
+            whereClause[Op.or] = [
+                // 제목에서 검색 (대소문자 구분 없음)
+                {
+                    title: {
+                        [Op.iLike]: `%${searchTerm}%`,
+                    },
+                },
+                // 설명에서 검색
+                {
+                    description: {
+                        [Op.iLike]: `%${searchTerm}%`,
+                    },
+                },
+                {
+                    "$uploader.full_name$": {
+                        [Op.iLike]: `%${searchTerm}%`,
+                    },
+                },
+            ];
+        }
+
+        // 정렬 옵션 설정
+        let orderClause;
+
+        if (sort === "random") {
+            // 무작위 정렬
+            orderClause = [literal("RANDOM()")];
+        } else {
+            // 일반 정렬
+            const allowedSortFields = [
+                "created_at",
+                "views",
+                "title",
+                "updated_at",
+            ];
+            const allowedOrders = ["ASC", "DESC"];
+
+            const sortField = allowedSortFields.includes(sort)
+                ? sort
+                : "created_at";
+            const sortOrder = allowedOrders.includes(order.toUpperCase())
+                ? order.toUpperCase()
+                : "DESC";
+
+            orderClause = [[sortField, sortOrder]];
+        }
+
+        // 검색 실행
+        const { count, rows } = await Video.findAndCountAll({
+            where: whereClause,
+            include: [
+                {
+                    model: User,
+                    as: "uploader",
+                    attributes: ["id", "username", "profileImage", "fullName"],
+                },
+            ],
+            order: orderClause,
+            limit: parseInt(limit),
+            offset: offset,
+            distinct: true,
+            subQuery: false, // 게시자 검색을 위해 필요
+        });
+
+        // 응답 데이터 가공
+        const videos = rows.map((video) => {
+            const videoJson = video.toJSON();
+
+            return {
+                ...videoJson,
+                // 재생 URL 추가
+                playbackUrl:
+                    videoJson.videoType === "live" && videoJson.isLive
+                        ? `http://localhost:3000/live/${videoJson.streamKey}/index.m3u8`
+                        : videoJson.hlsUrl
+                        ? `http://localhost:3000${videoJson.hlsUrl}`
+                        : videoJson.videoUrl
+                        ? `http://localhost:3000${videoJson.videoUrl}`
+                        : null,
+                // 상태 표시
+                status:
+                    videoJson.videoType === "live"
+                        ? videoJson.isLive
+                            ? "live"
+                            : "offline"
+                        : videoJson.hlsStatus === "completed"
+                        ? "ready"
+                        : videoJson.hlsStatus,
+            };
+        });
+
+        return res.json({
+            success: true,
+            data: {
+                videos,
+                search: {
+                    query: q,
+                    type,
+                    sort,
+                    liveOnly,
+                },
+                pagination: {
+                    total: count,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(count / parseInt(limit)),
+                },
+            },
+        });
+    } catch (error) {
+        console.error("Search videos error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to search videos",
+            error:
+                process.env.NODE_ENV === "development"
+                    ? error.message
+                    : undefined,
+        });
+    }
+};
+
+// ==================== 조회수 통계 ====================
+/**
+ * 인기 영상 (조회수 Top)
+ * GET /api/videos/trending
+ */
+exports.getTrendingVideos = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 20,
+            period = "all", // all, day, week, month
+            type = "all", // all, vod, live
+        } = req.query;
+
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        // 기간 필터
+        const whereClause = {};
+
+        if (type === "vod") {
+            whereClause.videoType = "vod";
+        } else if (type === "live") {
+            whereClause.videoType = "live";
+        }
+
+        // 기간별 필터 (created_at 기준)
+        if (period !== "all") {
+            const now = new Date();
+            let startDate;
+
+            switch (period) {
+                case "day":
+                    startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case "week":
+                    startDate = new Date(
+                        now.getTime() - 7 * 24 * 60 * 60 * 1000
+                    );
+                    break;
+                case "month":
+                    startDate = new Date(
+                        now.getTime() - 30 * 24 * 60 * 60 * 1000
+                    );
+                    break;
+            }
+
+            if (startDate) {
+                whereClause.created_at = {
+                    [Op.gte]: startDate,
+                };
+            }
+        }
+
+        // 조회수 순으로 정렬
+        const { count, rows } = await Video.findAndCountAll({
+            where: whereClause,
+            include: [
+                {
+                    model: User,
+                    as: "uploader",
+                    attributes: ["id", "username", "profileImage", "fullName"],
+                },
+            ],
+            order: [
+                ["views", "DESC"],
+                ["created_at", "DESC"],
+            ],
+            limit: parseInt(limit),
+            offset: offset,
+        });
+
+        const videos = rows.map((video, index) => {
+            const videoJson = video.toJSON();
+            return {
+                ...videoJson,
+                rank: offset + index + 1, // 순위 추가
+                playbackUrl:
+                    videoJson.videoType === "live" && videoJson.isLive
+                        ? `http://localhost:3000/live/${videoJson.streamKey}/index.m3u8`
+                        : videoJson.hlsUrl
+                        ? `http://localhost:3000${videoJson.hlsUrl}`
+                        : videoJson.videoUrl
+                        ? `http://localhost:3000${videoJson.videoUrl}`
+                        : null,
+            };
+        });
+
+        return res.json({
+            success: true,
+            data: {
+                videos,
+                filter: {
+                    period,
+                    type,
+                },
+                pagination: {
+                    total: count,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(count / parseInt(limit)),
+                },
+            },
+        });
+    } catch (error) {
+        console.error("Get trending videos error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get trending videos",
+            error:
+                process.env.NODE_ENV === "development"
+                    ? error.message
+                    : undefined,
+        });
+    }
+};
+
+/**
+ * 전체 통계
+ * GET /api/videos/stats
+ */
+exports.getStats = async (req, res) => {
+    try {
+        // 전체 영상 수
+        const totalVideos = await Video.count();
+
+        // VOD 수
+        const vodCount = await Video.count({
+            where: { videoType: "vod" },
+        });
+
+        // 라이브 스트림 수
+        const liveCount = await Video.count({
+            where: { videoType: "live" },
+        });
+
+        // 현재 방송중인 스트림 수
+        const activeLiveCount = await Video.count({
+            where: { videoType: "live", isLive: true },
+        });
+
+        // 전체 조회수
+        const totalViews = await Video.sum("views");
+
+        // 최근 24시간 업로드 수
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const recentUploads = await Video.count({
+            where: {
+                created_at: {
+                    [Op.gte]: yesterday,
+                },
+            },
+        });
+
+        // 가장 인기있는 영상
+        const topVideo = await Video.findOne({
+            include: [
+                {
+                    model: User,
+                    as: "uploader",
+                    attributes: ["id", "username", "profileImage"],
+                },
+            ],
+            order: [["views", "DESC"]],
+        });
+
+        // 전체 사용자 수
+        const totalUsers = await User.count();
+
+        return res.json({
+            success: true,
+            data: {
+                videos: {
+                    total: totalVideos,
+                    vod: vodCount,
+                    live: liveCount,
+                    activeLive: activeLiveCount,
+                },
+                views: {
+                    total: totalViews || 0,
+                    average:
+                        totalVideos > 0
+                            ? Math.round(totalViews / totalVideos)
+                            : 0,
+                },
+                recent: {
+                    uploadsLast24h: recentUploads,
+                },
+                topVideo: topVideo
+                    ? {
+                          id: topVideo.id,
+                          title: topVideo.title,
+                          views: topVideo.views,
+                          uploader: topVideo.uploader,
+                      }
+                    : null,
+                users: {
+                    total: totalUsers,
+                },
+            },
+        });
+    } catch (error) {
+        console.error("Get stats error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get statistics",
+            error:
+                process.env.NODE_ENV === "development"
+                    ? error.message
+                    : undefined,
+        });
+    }
+};
+
+/**
+ * 특정 게시자의 통계
+ * GET /api/videos/stats/uploader/:userId
+ */
+exports.getUploaderStats = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // 사용자 확인
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({
+                succesS: false,
+                message: "User not found",
+            });
+        }
+
+        // 총 영상 수
+        const totalVideos = await Video.count({
+            where: { uploaderId: userId },
+        });
+
+        // VOD 수
+        const vodCount = await Video.count({
+            where: {
+                uploaderId: userId,
+                videoType: "vod",
+            },
+        });
+
+        // 라이브 스트림 수
+        const liveCount = await Video.count({
+            where: {
+                uploaderId: userId,
+                videoType: "live",
+            },
+        });
+
+        // 총 조회수
+        const totalViews = await Video.sum("views", {
+            where: { uploaderId: userId },
+        });
+
+        // 평균 조회수
+        const avgViews =
+            totalVideos > 0 ? Math.round(totalViews / totalVideos) : 0;
+
+        // 가장 인기있는 영상
+        const topVideo = await Video.findOne({
+            where: { uploaderId: userId },
+            order: [["views", "DESC"]],
+            attirbutes: ["id", "title", "views", "videoType"],
+        });
+
+        // 최근 업로드 (5개)
+        const recentVideos = await Video.findAll({
+            where: { uploaderId: userId },
+            order: [["created_at", "DESC"]],
+            limit: 5,
+            attributes: ["id", "title", "views", "videoType", "created_at"],
+        });
+
+        return res.json({
+            success: true,
+            data: {
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    fullName: user.fullName,
+                    profileImage: user.profileImage,
+                },
+                stats: {
+                    totalVideos,
+                    vodCount,
+                    liveCount,
+                    totalViews: totalViews || 0,
+                    avgViews,
+                },
+                topVideo,
+                recentVideos,
+            },
+        });
+    } catch (error) {
+        console.error("Get uploader stats error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to get uploader statistics",
+            error:
+                process.env.NODE_ENV === "development"
+                    ? error.message
+                    : undefined,
+        });
+    }
+};
+
+/**
+ * 영상 목록 조회 (비로그인 가능)
+ * GET /api/videos
+ */
 exports.getVideos = async (req, res) => {
     try {
         const {
