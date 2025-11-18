@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Video Search & Stats Test</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background: #0f0f0f;
+                color: #ffffff;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+
+            h1 {
+                margin-bottom: 30px;
+                color: #3ea6ff;
+            }
+
+            h2 {
+                margin: 30px 0 15px;
+                color: #aaa;
+                font-size: 18px;
+            }
+
+            .section {
+                background: #1f1f1f;
+                border-radius: 12px;
+                padding: 25px;
+                margin-bottom: 20px;
+            }
+
+            .search-box {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+            }
+
+            input,
+            select,
+            button {
+                padding: 12px 20px;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+            }
+
+            input {
+                flex: 1;
+                min-width: 200px;
+                background: #2a2a2a;
+                color: white;
+            }
+
+            select {
+                background: #2a2a2a;
+                color: white;
+                cursor: pointer;
+            }
+
+            button {
+                background: #3ae6ff;
+                color: white;
+                cursor: pointer;
+                font-weight: 600;
+                transition: background 0.3s;
+            }
+
+            button:hover {
+                background: #2d8cdb;
+            }
+
+            button:disabled {
+                background: #555;
+                cursor: not-allowed;
+            }
+
+            .filters {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 20px;
+            }
+
+            .video-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 20px;
+            }
+
+            .video-card {
+                background: #2a2a2a;
+                border-radius: 12px;
+                overflow: hidden;
+                transition: transform 0.2s;
+                cursor: pointer;
+            }
+
+            .video-card:hover {
+                transform: translateY(-5px);
+            }
+
+            .video-thumbnail {
+                width: 100%;
+                height: 180px;
+                background: #1a1a1a;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            }
+
+            .video-thumbnail img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+            .badge {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+
+            .badge.live {
+                background: #cc0000;
+            }
+
+            .badge.vod {
+                background: #065f46;
+            }
+
+            .badge.rank {
+                background: #f59e0b;
+                top: 10px;
+                left: 10px;
+                right: auto;
+            }
+
+            .video-info {
+                padding: 15px;
+            }
+
+            .video-title {
+                font-weight: 600;
+                margin-bottom: 8px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .video-meta {
+                color: #aaa;
+                font-size: 13px;
+                display: flex;
+                gap: 10px;
+            }
+
+            .uploader {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-top: 10px;
+            }
+
+            .uploader img {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #444;
+            }
+
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+
+            .stat-card {
+                background: #2a2a2a;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+            }
+
+            .stat-value {
+                font-size: 32px;
+                font-weight: bold;
+                color: #3ea6ff;
+                margin-bottom: 5px;
+            }
+
+            .stat-label {
+                color: #aaa;
+                font-size: 14px;
+            }
+
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: #aaa;
+            }
+
+            .error {
+                background: #7f1d1d;
+                color: #fecaca;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }
+
+            .pagination {
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+                margin-top: 30px;
+            }
+
+            .pagination button {
+                min-width: 40px;
+            }
+
+            .pagination .active {
+                background: #2d8cdb;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Video Search & Statistics</h1>
+
+            <!-- 전체 통계 -->
+            <div class="section">
+                <h2>Platform Statistics</h2>
+                <div class="stats-grid" id="platformStats">
+                    <div class="loading">Loading stats...</div>
+                </div>
+            </div>
+
+            <!-- 검색 섹션 -->
+            <div class="section">
+                <h2>Search Videos (VOD + Live)</h2>
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="searchQuery"
+                        placeholder="Search by title, description, or uploader..."
+                        onkeypress="handleSearchKeyPress(event)"
+                    />
+                    <button onclick="searchVideos()">Search</button>
+                </div>
+
+                <div class="filters">
+                    <select id="typeFilter">
+                        <option value="all">All Types</option>
+                        <option value="vod">VOD Only</option>
+                        <option value="live">Live Only</option>
+                    </select>
+
+                    <select id="sortFilter">
+                        <option value="random">Random</option>
+                        <option value="created_at">Latest</option>
+                        <option value="views">Most Viewed</option>
+                        <option value="title">Title (A-Z)</option>
+                    </select>
+
+                    <select id="orderFilter">
+                        <option value="DESC">Descending</option>
+                        <option value="ASC">Ascending</option>
+                    </select>
+
+                    <label
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            padding: 0 15px;
+                            background: #2a2a2a;
+                            border-radius: 8px;
+                        "
+                    >
+                        <input type="checkbox" id="liveOnlyFilter" />
+                        <span>Live Now Only</span>
+                    </label>
+                </div>
+
+                <div id="searchResults">
+                    <div class="loading">
+                        Enter search term or click Search to see all videos
+                    </div>
+                </div>
+
+                <div class="pagination" id="searchPagination"></div>
+            </div>
+
+            <!-- 인기 영상 -->
+            <div class="section">
+                <h2>Trending Videos</h2>
+                <div class="filters">
+                    <select id="trendingPeriod" onchange="loadTrending()">
+                        <option value="day">Last 24 Hours</option>
+                        <option value="week">Last Week</option>
+                        <option value="month">Last Month</option>
+                        <option value="all">All Time</option>
+                    </select>
+
+                    <select id="trendingType" onchange="loadTrending()">
+                        <option value="all">All Types</option>
+                        <option value="vod">VOD Only</option>
+                        <option value="live">Live Only</option>
+                    </select>
+                </div>
+
+                <div id="trendingResults">
+                    <div class="loading">Loading trending videos...</div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const API_URL = "http://localhost:3000";
+            let currentSearchPage = 1;
+
+            // 페이지 로드시 초기 데이터 가져오기
+            window.addEventListener("load", () => {
+                loadPlatformStats();
+                loadTrending();
+            });
+
+            // 전체 통계
+            async function loadPlatformStats() {
+                try {
+                    const response = await fetch(`${API_URL}/api/videos/stats`);
+                    const data = await response.json();
+
+                    if (data.success) {
+                        const stats = data.data;
+                        const statsHtml = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.videos.total}</div>
+                            <div class="stat-label">Total Videos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.videos.vod}</div>
+                            <div class="stat-label">VOD Videos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.videos.live}</div>
+                            <div class="stat-label">Live Streams</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${
+                                stats.videos.activeLive
+                            }</div>
+                            <div class="stat-label">Live Now</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.views.total.toLocaleString()}</div>
+                            <div class="stat-label">Total Views</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.views.average}</div>
+                            <div class="stat-label">Avg Views</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.users.total}</div>
+                            <div class="stat-label">Total Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${
+                                stats.recent.uploadsLast24h
+                            }</div>
+                            <div class="stat-label">New (24h)</div>
+                        </div>
+                        `;
+                        document.getElementById("platformStats").innerHTML =
+                            statsHtml;
+                    }
+                } catch (error) {
+                    console.error("Failed to laod stats:", error);
+                    document.getElementById("platformStats").innerHTML =
+                        '<div class="error">Failed to load statistics</div>';
+                }
+            }
+
+            // 영상 검색
+            async function searchVideos(page = 1) {
+                const query = document.getElementById("searchQuery").value;
+                const type = document.getElementById("typeFilter").value;
+                const sort = document.getElementById("sortFilter").value;
+                const order = document.getElementById("orderFilter").value;
+                const liveOnly =
+                    document.getElementById("liveOnlyFilter").value;
+
+                currentSearchPage = page;
+
+                const resultsDiv = document.getElementById("searchResults");
+                resultsDiv.innerHTML =
+                    '<div class="loading">Searching...</div>';
+
+                try {
+                    const params = new URLSearchParams({
+                        q: query,
+                        page,
+                        limit: 12,
+                        sort,
+                        order,
+                        type,
+                        liveOnly,
+                    });
+
+                    const response = await fetch(
+                        `${API_URL}/api/videos/search?${params}`
+                    );
+                    const data = await response.json();
+
+                    if (data.success) {
+                        displayVideos(data.data.videos, resultsDiv);
+                        displayPagination(
+                            data.data.pagination,
+                            "searchPagination",
+                            searchVideos
+                        );
+
+                        if (data.data.videos.length === 0) {
+                            resultsDiv.innerHTML =
+                                '<div class="loading">No videos found</div>';
+                        }
+                    } else {
+                        resultsDiv.innerHTML = `<div class="error">${data.message}</div>`;
+                    }
+                } catch (error) {
+                    console.error("Search error:", error);
+                    resultsDiv.innerHTML =
+                        '<div class="error">Search failed</div>';
+                }
+            }
+
+            // 인기 영상
+            async function loadTrending() {
+                const period = document.getElementById("trendingPeriod").value;
+                const type = document.getElementById("trendingType").value;
+
+                const resultsDiv = document.getElementById("trendingResults");
+                resultsDiv.innerHTML = '<div class="loading">Loading...</div>';
+
+                try {
+                    const params = new URLSearchParams({
+                        period,
+                        type,
+                        limit: 12,
+                    });
+
+                    const response = await fetch(
+                        `${API_URL}/api/videos/trending?${params}`
+                    );
+                    const data = await response.json();
+
+                    if (data.success) {
+                        displayVideos(data.data.videos, resultsDiv, true);
+                    } else {
+                        resultsDiv.innerHTML = `<div class="error">${data.message}</div>`;
+                    }
+                } catch (error) {
+                    console.error("Trending error:", error);
+                    resultsDiv.innerHTML =
+                        '<div class="error">Failed to load trending videos</div>';
+                }
+            }
+
+            // 영상 카드 표시
+            function displayVideos(videos, container, showRank = false) {
+                if (videos.length === 0) {
+                    container.innerHTML =
+                        '<div class="loading">No videos found</div>';
+                    return;
+                }
+
+                const html = videos
+                    .map(
+                        (video) => `
+                <div class="video-card" onclick="openVideo(${video.id})">
+                    <div class="video-thumbnail">
+                        ${
+                            video.thumbnailUrl
+                                ? `<img src="${API_URL}${video.thumbnailUrl}" alt="${video.title}" />`
+                                : "<span>📹</span>"
+                        }
+                        ${
+                            showRank
+                                ? `<span class="badge rank">${video.rank}</span>`
+                                : ""
+                        }
+                        <span class="badge ${
+                            video.videoType
+                        }">${video.videoType.toUpperCase()}</span>
+                        ${
+                            video.isLive
+                                ? '<span class="badge live" style="top: 50px;">LIVE</span>'
+                                : ""
+                        }
+                    </div>
+                    <div class="video-info">
+                        <div class="video-title">${video.title}</div>
+                        <div class="video-meta">
+                            <span>${video.views.toLocaleString()}</span>
+                            ${
+                                video.duration
+                                    ? `<span>${formatDuration(
+                                          video.duration
+                                      )}</span>`
+                                    : ""
+                            }
+                        </div>
+                        <div class="uploader">
+                            ${
+                                video.uploader.profileImage
+                                    ? `<img src="${API_URL}${video.uploader.profileImage}" />`
+                                    : "<img />"
+                            }
+                            <span>${video.uploader.username}</span>
+                        </div>
+                    </div>
+                </div>
+                `
+                    )
+                    .join("");
+
+                container.innerHTML = `<div class="video-grid">${html}</div>`;
+            }
+
+            // 페이지네이션 표시
+            function displayPagination(pagination, containerId, callback) {
+                const container = document.getElementById(containerId);
+                if (!pagination || pagination.totalPages <= 1) {
+                    container.innerHTML = "";
+                    return;
+                }
+
+                const { page, totalPages } = pagination;
+                let html = "";
+
+                // 이전 페이지
+                if (page > 1) {
+                    html += `<button onclick="${callback.name}(${
+                        page - 1
+                    })">◀</button>`;
+                }
+
+                // 페이지 번호
+                const startPage = Math.max(1, page - 2);
+                const endPage = Main.min(totalPages, page + 2);
+
+                for (let i = startPage; i <= endPage; i++) {
+                    const active = i === page ? "active" : "";
+                    html += `<button class="${active}" onclick="${callback.name}(${i})">${i}</button>`;
+                }
+
+                // 다음 페이지
+                if (page < totalPages) {
+                    html += `<button onclick="${callback.name}(${
+                        page + 1
+                    })">▶</button>`;
+                }
+
+                container.innerHTML = html;
+            }
+
+            // 영상 열기
+            function openVideo(videoId) {
+                window.open(`/video-detail.html?id=${videoId}`, "_blank");
+            }
+
+            // 검색 엔터키 처리
+            function handleSearchKeyPress(event) {
+                if (event.key === "Enter") {
+                    searchVideos();
+                }
+            }
+
+            // 시간 포맷팅
+            function formatDuration(seconds) {
+                if (!seconds) return "00:00";
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, "0")}`;
+            }
+        </script>
+    </body>
+</html>
