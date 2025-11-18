@@ -7,7 +7,7 @@ let project = Project(
             name: "Video-Streaming-Platform",
             destinations: .iOS,
             product: .app,
-            bundleId: "dev.tuist.Video-Streaming-Platform",
+            bundleId: "com.immeenu.VSP",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -26,7 +26,7 @@ let project = Project(
             name: "Video-Streaming-PlatformTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "dev.tuist.Video-Streaming-PlatformTests",
+            bundleId: "com.immeenu.VSPTests",
             infoPlist: .default,
             buildableFolders: [
                 "Video-Streaming-Platform/Tests"
