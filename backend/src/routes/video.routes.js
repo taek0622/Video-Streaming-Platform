@@ -3,6 +3,20 @@ const router = express.Router();
 const videoConntroller = require("../controllers/video.controller");
 const { requireAuth, optionalAuth } = require("../middleware/auth.middleware");
 
+// ==================== 검색 및 통계 라우트 ===================
+
+// 통합 영상 검색 (VOD + Live)
+router.get("/search", optionalAuth, videoConntroller.searchVideos);
+
+// 인기 영상 (조회수 Top)
+router.get("/trending", optionalAuth, videoConntroller.getTrendingVideos);
+
+// 전체 통계
+router.get("/stats", videoConntroller.getStats);
+
+// 특정 게시자 통계
+router.get("/stats/uploader/:userId", videoConntroller.getUploaderStats);
+
 // 영상 목록 조회 (비로그인 가능)
 router.get("/", optionalAuth, videoConntroller.getVideos);
 
