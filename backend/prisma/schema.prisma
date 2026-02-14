@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VideoVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  nickname  String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  videos    Video[]
+  likes     Like[]
+  comments  Comment[]
+
+  @@map("users")
+}
+
+model Video {
+  id           String          @id @default(cuid())
+  uploaderId   String          @map("uploader_id")
+  title        String
+  description  String?
+  thumbnailUrl String          @map("thumbnail_url")
+  playbackPath String?         @map("playback_path")
+  errorMessage String?         @map("error_message")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  viewCount    Int             @default(0) @map("view_count")
+  likeCount    Int             @default(0) @map("like_count")
+  visibility   VideoVisibility @default(PUBLIC)
+  status       VideoStatus     @default(UPLOADING)
+  uploader     User            @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  likes        Like[]
+  comments     Comment[]
+  viewEvents   ViewEvent[]
+
+  @@index([uploaderId])
+  @@index([createdAt])
+  @@map("videos")
+}
+
+model Like {
+  userId String @map("user_id")
+  videoId String @map("video_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video  Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  videoId   String    @map("video_id")
+  userId    String    @map("user_id")
+  parentId  String?   @map("parent_id")
+  content   String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  video     Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   Comment[] @relation("CommentReplies")
+
+  @@index([videoId, createdAt])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model ViewEvent {
+  videoId      String   @map("video_id")
+  viewerKey    String   @map("viewer_key")
+  lastViewedAt DateTime @default(now()) @map("last_viewed_at")
+  video        Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, viewerKey])
+  @@map("view_events")
+}

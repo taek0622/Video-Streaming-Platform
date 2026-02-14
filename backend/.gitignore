@@ -1,9 +1,4 @@
-uploads/thumbnails/*
-!uploads/thumbnails/.gitkeep
-uploads/videos/*
-!uploads/videos/hls/
-!uploads/videos/.gitkeep
-uploads/videos/hls/*
-!uploads/videos/hls/.gitkeep
-uploads/live/*
-!uploads/live/.gitkeep
+node_modules/
+dist/
+npm-debug.log*
+storage
