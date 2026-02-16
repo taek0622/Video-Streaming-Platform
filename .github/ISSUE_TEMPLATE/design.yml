@@ -1,0 +1,40 @@
+name: "🎨 Design"
+description: "UI/UX 디자인 변경(화면/컴포넌트/인터랙션)"
+title: "[Design] "
+labels: ["type: design"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표/배경
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 변경 범위
+      placeholder: |
+        - 화면/컴포넌트:
+        - 상태(로딩/에러/빈 상태):
+        - 접근성(필요 시):
+    validations:
+      required: true
+
+  - type: textarea
+    id: assets
+    attributes:
+      label: 시안/레퍼런스 링크
+      placeholder: "Figma 링크, 스크린샷, 레퍼런스"
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 조건
+      placeholder: |
+        - [ ] Before/After 스크린샷 포함
+        - [ ] 레이아웃 깨짐 없음
+    validations:
+      required: true

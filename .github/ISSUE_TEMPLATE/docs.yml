@@ -1,0 +1,32 @@
+name: "📚 Docs"
+description: "README/가이드/API 문서/주석 등 문서 작업"
+title: "[Docs] "
+labels: ["type: docs"]
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: 대상 문서
+      placeholder: "예) README, CONTRIBUTING, API 문서, 위키"
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: 변경 내용
+      placeholder: |
+        - 추가/수정할 내용:
+        - 삭제할 내용:
+    validations:
+      required: true
+
+  - type: textarea
+    id: done_definition
+    attributes:
+      label: 완료 조건
+      placeholder: |
+        - [ ] 문서가 최신 동작과 일치
+        - [ ] 예제/스크린샷 업데이트
+    validations:
+      required: true

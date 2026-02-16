@@ -1,0 +1,40 @@
+name: "🧪 Test"
+description: "테스트 추가/보강/수정 (단위/통합/e2e)"
+title: "[Test] "
+labels: ["type: test"]
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 목적
+      placeholder: "예) 회귀 방지, 특정 버그 재현 테스트 추가"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위
+      placeholder: |
+        - 테스트 종류: unit/integration/e2e
+        - 대상 모듈/기능:
+    validations:
+      required: true
+
+  - type: textarea
+    id: cases
+    attributes:
+      label: 테스트 케이스
+      placeholder: |
+        - [ ] 정상 케이스
+        - [ ] 에러 케이스
+        - [ ] 경계값
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 참고/리스크
+    validations:
+      required: false

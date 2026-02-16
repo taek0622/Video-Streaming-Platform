@@ -1,0 +1,48 @@
+name: "🧹 Refactor"
+description: "동작 변경 없는 리팩토링 작업"
+title: "[Refactor] "
+labels: ["type: refactor"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표
+      placeholder: "예) 의존성 역전, 모듈화, 중복 제거"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위 (In scope)
+      placeholder: |
+        - 포함:
+        - 제외:
+    validations:
+      required: true
+
+  - type: textarea
+    id: plan
+    attributes:
+      label: 접근 방법 / 변경 전략
+      placeholder: "예) 단계적 마이그레이션, feature flag, 커밋 단위 등"
+    validations:
+      required: false
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: 리스크/주의사항
+      placeholder: "예) API 호출 순서 변경 위험, 마이그레이션 필요 여부"
+    validations:
+      required: false
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 검증 방법
+      placeholder: |
+        - [ ] 기존 테스트 통과
+        - [ ] 회귀 테스트 시나리오:
+    validations:
+      required: true

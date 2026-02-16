@@ -1,0 +1,47 @@
+name: "🔬 Spike (Research)"
+description: "조사/프로토타입/기술 검증 후 결론을 남깁니다."
+title: "[Spike] "
+labels: ["type: spike"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: 조사 질문
+      placeholder: "예) HLS fMP4 vs TS, 저장 전략, 성능 비교"
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: 조사 방법
+      placeholder: |
+        - 참고 자료:
+        - 실험 계획:
+        - 비교 기준:
+    validations:
+      required: true
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: 산출물
+      placeholder: |
+        - [ ] 결론 요약
+        - [ ] 의사결정(선택/배제)
+        - [ ] 후속 이슈 링크
+    validations:
+      required: true
+
+  - type: dropdown
+    id: timebox
+    attributes:
+      label: 타임박스
+      options:
+        - 2 hours
+        - 0.5 day
+        - 1 day
+        - 2 days
+        - 1 week
+    validations:
+      required: true

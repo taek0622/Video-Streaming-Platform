@@ -1,0 +1,64 @@
+name: "✨ Feature request"
+description: "완전히 새로운 기능(새 플로우/새 API/새 화면)을 제안합니다."
+title: "[Feature] "
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 요약
+      placeholder: "한 문장으로 어떤 기능인지"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "배경/문제"
+      description: "왜 이 기능이 필요한가?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 제안 내용 (User Flow / 동작)
+      placeholder: |
+        - 사용 시나리오:
+        - 동작 방식:
+        - UI/UX:
+        - 에러 케이스:
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 조건 (Acceptance Criteria)
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 의존성 / 선행 작업
+      placeholder: "예) #123 먼저 필요, API 준비 필요"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: Backlog에서의 중요도
+      options:
+        - ★★★★★
+        - ★★★★
+        - ★★★
+        - ★★
+        - ★
+    validations:
+      required: true

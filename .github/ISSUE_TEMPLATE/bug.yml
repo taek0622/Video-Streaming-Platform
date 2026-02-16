@@ -1,0 +1,66 @@
+name: "🐞 Bug report"
+description: "버그 재현/원인/수정 범위를 명확히 기록합니다."
+title: "[Bug] "
+labels: ["type: bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        재현 가능한 형태로 작성해 주세요. (스크린샷/로그 지향)
+
+  - type: input
+    id: environment
+    attributes:
+      label: 환경 (Environment)
+      description: "예) iOS 26.0, iPhone 17 Pro, 앱 버전 1.1.2"
+      placeholder: "OS / 디바이스 / 앱버전 등"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 절차 (Steps to Reproduce)
+      placeholder: |
+        1) ...
+        2) ...
+        3) ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과 (Expected)
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과 (Actual)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그/스크린샷
+      description: "가능하면 첨부해주세요. 첨부 전에 민감정보는 마스킹 필수!"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: Backlog에서의 중요도
+      options:
+        - ★★★★★ (서비스 중단/데이터 손상)
+        - ★★★★ (높음)
+        - ★★★ (보통)
+        - ★★ (낮음)
+        - ★ (버그 인지)
+    validations:
+      required: true

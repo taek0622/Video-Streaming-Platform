@@ -1,0 +1,55 @@
+name: "🌱 Enhancement"
+description: "기존 기능의 UX/성능/안정성/품질을 개선합니다."
+title: "[Enhancement] "
+labels: ["type: enhancement"]
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: 현재 동작/문제점
+      placeholder: "지금 무엇이 불편/비효율적인지"
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: 개선 방향
+      placeholder: |
+        - UX 개선:
+        - 성능 개선:
+        - 안정성 개선:
+    validations:
+      required: true
+
+  - type: textarea
+    id: success_metric
+    attributes:
+      label: 성공 기준(측정 가능하면)
+      placeholder: "예) 로딩 1.8s → 1.0s, 크래시 0건, 클릭 수 감소 등"
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 조건 (Acceptance Criteria)
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: Backlog에서의 중요도
+      options:
+        - ★★★★★
+        - ★★★★
+        - ★★★
+        - ★★
+        - ★
+    validations:
+      required: true
