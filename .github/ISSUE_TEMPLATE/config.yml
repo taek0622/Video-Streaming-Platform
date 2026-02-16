@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
     - name: 💬 질문/논의 (Discussions)
-      url: https://github.com/<OWNER>/<REPO>/discussions
+      url: https://github.com/taek0622/Video-Streaming-Platform/discussions
       about: 질문, 아이디어 토론은 Discussions에서 논의합니다.
