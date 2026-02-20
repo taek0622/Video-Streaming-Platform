@@ -9,7 +9,11 @@ import SwiftUI
 
 struct HomeView: View {
 
-    @StateObject private var viewModel = HomeViewModel(service: VideoManager())
+    @StateObject private var viewModel: HomeViewModel
+
+    init(videoService: VideoService = VideoManager()) {
+        _viewModel = StateObject(wrappedValue: HomeViewModel(service: videoService))
+    }
 
     var body: some View {
         List(viewModel.videos) { video in

@@ -1,12 +1,13 @@
 import SwiftUI
 
 public struct ContentView: View {
-    public init() {}
+
+    private let videoService: VideoService = VideoManager()
 
     public var body: some View {
         TabView {
             Tab("Home", systemImage: "house") {
-                HomeView()
+                HomeView(videoService: videoService)
             }
         }
     }
