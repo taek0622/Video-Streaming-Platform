@@ -28,6 +28,7 @@ export const env = {
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
   ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
+  ffprobePath: process.env.FFPROBE_PATH ?? 'ffprobe',
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? `http://localhost:${port}`,
   localStorageDir: process.env.LOCAL_STORAGE_DIR ?? 'uploads',
   localUploadUrlExpiresSeconds,

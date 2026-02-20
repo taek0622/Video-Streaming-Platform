@@ -6,7 +6,7 @@ describe('video processing worker', () => {
   it('marks video as READY and stores playbackPath on success', async () => {
     const findUniqueMock = vi.fn().mockResolvedValue({ id: 'video-1' });
     const updateMock = vi.fn().mockResolvedValue({});
-    const transcodeMock = vi.fn().mockResolvedValue(undefined);
+    const transcodeMock = vi.fn().mockResolvedValue({ durationSeconds: 123 });
 
     const runner = createVideoProcessingJobRunner({
       store: {
@@ -27,6 +27,7 @@ describe('video processing worker', () => {
         status: VideoStatus.READY,
         playbackPath: '/media/videos/video-1/hls/master.m3u8',
         errorMessage: null,
+        durationSeconds: 123,
       },
     });
   });
@@ -60,6 +61,7 @@ describe('video processing worker', () => {
         playbackPath: null,
         errorMessage:
           'ffmpeg crashed with a very long detail line that should be compacted and possibly truncated to keep db message short',
+        durationSeconds: null,
       },
     });
   });

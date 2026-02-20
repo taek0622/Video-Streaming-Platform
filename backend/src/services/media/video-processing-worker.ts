@@ -16,6 +16,7 @@ type VideoProcessingStore = {
         status: VideoStatus;
         playbackPath?: string | null;
         errorMessage?: string | null;
+        durationSeconds?: number | null;
       };
     }) => Promise<unknown>;
   };
@@ -23,7 +24,7 @@ type VideoProcessingStore = {
 
 type VideoProcessingJobRunnerOptions = {
   store: VideoProcessingStore;
-  transcode: (videoId: string) => Promise<void>;
+  transcode: (videoId: string) => Promise<{ durationSeconds: number | null }>;
   playbackPathBuilder: (videoId: string) => string;
   logError?: (payload: { err: unknown; videoId: string; message: string }) => void;
 };
@@ -50,7 +51,7 @@ export const createVideoProcessingJobRunner = (options: VideoProcessingJobRunner
       }
 
       try {
-        await options.transcode(videoId);
+        const result = await options.transcode(videoId);
 
         await options.store.video.update({
           where: { id: videoId },
@@ -58,6 +59,7 @@ export const createVideoProcessingJobRunner = (options: VideoProcessingJobRunner
             status: VideoStatus.READY,
             playbackPath: options.playbackPathBuilder(videoId),
             errorMessage: null,
+            durationSeconds: result.durationSeconds,
           },
         });
       } catch (error) {
@@ -75,6 +77,7 @@ export const createVideoProcessingJobRunner = (options: VideoProcessingJobRunner
             status: VideoStatus.FAILED,
             playbackPath: null,
             errorMessage,
+            durationSeconds: null,
           },
         });
       }

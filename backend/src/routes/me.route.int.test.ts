@@ -32,20 +32,32 @@ describe('me route integration', () => {
         video: {
           id: 'video-1',
           title: 'one',
-          thumbnailUrl: '/thumb1.jpg',
+          description: 'desc one',
+          durationSeconds: 120,
+          playbackPath: '/media/videos/video-1/hls/master.m3u8',
           createdAt: new Date('2026-02-14T10:00:00.000Z'),
           viewCount: 20,
           likeCount: 5,
+          uploader: {
+            id: 'uploader-1',
+            nickname: 'user1',
+          },
         },
       },
       {
         video: {
           id: 'video-2',
           title: 'two',
-          thumbnailUrl: '/thumb2.jpg',
+          description: 'desc two',
+          durationSeconds: 95,
+          playbackPath: '/media/videos/video-2/hls/master.m3u8',
           createdAt: new Date('2026-02-14T09:00:00.000Z'),
           viewCount: 10,
           likeCount: 3,
+          uploader: {
+            id: 'uploader-2',
+            nickname: 'user2',
+          },
         },
       },
     ]);
@@ -58,6 +70,13 @@ describe('me route integration', () => {
         userId: 'user-1',
         video: {
           visibility: 'PUBLIC',
+          status: 'READY',
+          durationSeconds: {
+            not: null,
+          },
+          playbackPath: {
+            not: null,
+          },
         },
       },
       select: {
@@ -65,10 +84,18 @@ describe('me route integration', () => {
           select: {
             id: true,
             title: true,
-            thumbnailUrl: true,
+            description: true,
+            durationSeconds: true,
+            playbackPath: true,
             createdAt: true,
             viewCount: true,
             likeCount: true,
+            uploader: {
+              select: {
+                id: true,
+                nickname: true,
+              },
+            },
           },
         },
       },
@@ -77,16 +104,32 @@ describe('me route integration', () => {
       {
         id: 'video-1',
         title: 'one',
-        thumbnailUrl: '/thumb1.jpg',
+        description: 'desc one',
+        durationSeconds: 120,
+        uploader: {
+          id: 'uploader-1',
+          nickname: 'user1',
+        },
         createdAt: '2026-02-14T10:00:00.000Z',
+        playbackUrl: 'http://localhost:3000/media/videos/video-1/hls/master.m3u8',
+        thumbnailUrl: 'http://localhost:3000/media/videos/video-1/thumbnail',
+        score: 70,
         viewCount: 20,
         likeCount: 5,
       },
       {
         id: 'video-2',
         title: 'two',
-        thumbnailUrl: '/thumb2.jpg',
+        description: 'desc two',
+        durationSeconds: 95,
+        uploader: {
+          id: 'uploader-2',
+          nickname: 'user2',
+        },
         createdAt: '2026-02-14T09:00:00.000Z',
+        playbackUrl: 'http://localhost:3000/media/videos/video-2/hls/master.m3u8',
+        thumbnailUrl: 'http://localhost:3000/media/videos/video-2/thumbnail',
+        score: 40,
         viewCount: 10,
         likeCount: 3,
       },

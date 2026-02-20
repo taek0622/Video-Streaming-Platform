@@ -39,6 +39,7 @@ model Video {
   thumbnailUrl String          @map("thumbnail_url")
   playbackPath String?         @map("playback_path")
   errorMessage String?         @map("error_message")
+  durationSeconds Int?         @map("duration_seconds")
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
   viewCount    Int             @default(0) @map("view_count")
