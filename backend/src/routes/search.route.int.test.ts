@@ -26,46 +26,71 @@ describe('search route integration', () => {
         id: 'v4',
         title: 'cat low',
         description: 'desc low',
-        thumbnailUrl: '/thumb4.jpg',
+        durationSeconds: 104,
+        playbackPath: '/media/videos/v4/hls/master.m3u8',
         createdAt: new Date('2026-02-10T00:00:00.000Z'),
         viewCount: 80,
         likeCount: 0,
+        uploader: {
+          id: 'uploader-4',
+          nickname: 'user4',
+        },
       },
       {
         id: 'v1',
         title: 'cat top older',
         description: 'desc 1',
-        thumbnailUrl: '/thumb1.jpg',
+        durationSeconds: 101,
+        playbackPath: '/media/videos/v1/hls/master.m3u8',
         createdAt: new Date('2026-02-10T00:00:00.000Z'),
         viewCount: 80,
         likeCount: 4,
+        uploader: {
+          id: 'uploader-1',
+          nickname: 'user1',
+        },
       },
       {
         id: 'v5',
         title: 'cat bottom',
         description: 'desc bottom',
-        thumbnailUrl: '/thumb5.jpg',
+        durationSeconds: 105,
+        playbackPath: '/media/videos/v5/hls/master.m3u8',
         createdAt: new Date('2026-02-09T00:00:00.000Z'),
         viewCount: 10,
         likeCount: 1,
+        uploader: {
+          id: 'uploader-5',
+          nickname: 'user5',
+        },
       },
       {
         id: 'v3',
         title: 'cat middle',
         description: 'desc 3',
-        thumbnailUrl: '/thumb3.jpg',
+        durationSeconds: 103,
+        playbackPath: '/media/videos/v3/hls/master.m3u8',
         createdAt: new Date('2026-02-11T00:00:00.000Z'),
         viewCount: 15,
         likeCount: 8,
+        uploader: {
+          id: 'uploader-3',
+          nickname: 'user3',
+        },
       },
       {
         id: 'v2',
         title: 'cat top newer',
         description: 'desc 2',
-        thumbnailUrl: '/thumb2.jpg',
+        durationSeconds: 102,
+        playbackPath: '/media/videos/v2/hls/master.m3u8',
         createdAt: new Date('2026-02-12T00:00:00.000Z'),
         viewCount: 20,
         likeCount: 10,
+        uploader: {
+          id: 'uploader-2',
+          nickname: 'user2',
+        },
       },
     ]);
 
@@ -80,6 +105,13 @@ describe('search route integration', () => {
     expect(mocks.videoFindManyMock).toHaveBeenCalledWith({
       where: {
         visibility: 'PUBLIC',
+        status: 'READY',
+        durationSeconds: {
+          not: null,
+        },
+        playbackPath: {
+          not: null,
+        },
         OR: [
           {
             title: {
@@ -99,10 +131,17 @@ describe('search route integration', () => {
         id: true,
         title: true,
         description: true,
-        thumbnailUrl: true,
+        durationSeconds: true,
+        playbackPath: true,
         createdAt: true,
         viewCount: true,
         likeCount: true,
+        uploader: {
+          select: {
+            id: true,
+            nickname: true,
+          },
+        },
       },
     });
 
@@ -118,7 +157,13 @@ describe('search route integration', () => {
           id: 'v3',
           title: 'cat middle',
           description: 'desc 3',
-          thumbnailUrl: '/thumb3.jpg',
+          durationSeconds: 103,
+          uploader: {
+            id: 'uploader-3',
+            nickname: 'user3',
+          },
+          playbackUrl: 'http://localhost:3000/media/videos/v3/hls/master.m3u8',
+          thumbnailUrl: 'http://localhost:3000/media/videos/v3/thumbnail',
           score: 95,
           viewCount: 15,
           likeCount: 8,
@@ -128,7 +173,13 @@ describe('search route integration', () => {
           id: 'v4',
           title: 'cat low',
           description: 'desc low',
-          thumbnailUrl: '/thumb4.jpg',
+          durationSeconds: 104,
+          uploader: {
+            id: 'uploader-4',
+            nickname: 'user4',
+          },
+          playbackUrl: 'http://localhost:3000/media/videos/v4/hls/master.m3u8',
+          thumbnailUrl: 'http://localhost:3000/media/videos/v4/thumbnail',
           score: 80,
           viewCount: 80,
           likeCount: 0,

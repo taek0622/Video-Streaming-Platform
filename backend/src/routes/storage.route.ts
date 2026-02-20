@@ -46,6 +46,7 @@ storageRouter.put('/upload', async (req, res, next) => {
           status: VideoStatus.UPLOADING,
           playbackPath: null,
           errorMessage: null,
+          durationSeconds: null,
         },
       });
 

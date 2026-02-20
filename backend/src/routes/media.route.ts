@@ -36,6 +36,24 @@ const isAllowedPathToken = (value: string): boolean => {
 
 export const mediaRouter = Router();
 
+const ensureMediaAccess = async (videoId: string, requesterId: string | undefined): Promise<void> => {
+  const video = await prisma.video.findUnique({
+    where: { id: videoId },
+    select: {
+      uploaderId: true,
+      visibility: true,
+    },
+  });
+
+  if (!video) {
+    throw new AppError(404, 'MEDIA_NOT_FOUND', 'Media not found');
+  }
+
+  if (video.visibility === VideoVisibility.PRIVATE && requesterId !== video.uploaderId) {
+    throw new AppError(404, 'MEDIA_NOT_FOUND', 'Media not found');
+  }
+};
+
 mediaRouter.get('/videos/:videoId/hls/:filename', attachAuthIfPresent, async (req, res, next) => {
   try {
     const videoId = req.params.videoId;
@@ -45,21 +63,7 @@ mediaRouter.get('/videos/:videoId/hls/:filename', attachAuthIfPresent, async (re
       throw new AppError(400, 'INVALID_MEDIA_PATH', 'Invalid media path');
     }
 
-    const video = await prisma.video.findUnique({
-      where: { id: videoId },
-      select: {
-        uploaderId: true,
-        visibility: true,
-      },
-    });
-
-    if (!video) {
-      throw new AppError(404, 'MEDIA_NOT_FOUND', 'Media not found');
-    }
-
-    if (video.visibility === VideoVisibility.PRIVATE && req.user?.id !== video.uploaderId) {
-      throw new AppError(404, 'MEDIA_NOT_FOUND', 'Media not found');
-    }
+    await ensureMediaAccess(videoId, req.user?.id);
 
     const hlsDirectory = path.resolve(getVideoPublicAbsoluteDirectory(videoId), 'hls');
     const absoluteFilePath = path.resolve(hlsDirectory, filename);
@@ -75,6 +79,44 @@ mediaRouter.get('/videos/:videoId/hls/:filename', attachAuthIfPresent, async (re
     res.setHeader('Cache-Control', env.nodeEnv === 'production' ? 'public, max-age=30' : 'no-cache');
 
     res.sendFile(absoluteFilePath, (error) => {
+      if (error) {
+        next(error);
+      }
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      next(new AppError(404, 'MEDIA_NOT_FOUND', 'Media not found'));
+      return;
+    }
+
+    next(error);
+  }
+});
+
+mediaRouter.get('/videos/:videoId/thumbnail', attachAuthIfPresent, async (req, res, next) => {
+  try {
+    const videoId = req.params.videoId;
+
+    if (!isAllowedPathToken(videoId)) {
+      throw new AppError(400, 'INVALID_MEDIA_PATH', 'Invalid media path');
+    }
+
+    await ensureMediaAccess(videoId, req.user?.id);
+
+    const thumbnailAbsolutePath = path.resolve(getVideoPublicAbsoluteDirectory(videoId), 'thumbnail.jpg');
+    const videoDirectory = path.resolve(getVideoPublicAbsoluteDirectory(videoId));
+
+    if (!thumbnailAbsolutePath.startsWith(`${videoDirectory}${path.sep}`)) {
+      throw new AppError(400, 'INVALID_MEDIA_PATH', 'Invalid media path');
+    }
+
+    await fs.access(thumbnailAbsolutePath);
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', env.nodeEnv === 'production' ? 'public, max-age=30' : 'no-cache');
+
+    res.sendFile(thumbnailAbsolutePath, (error) => {
       if (error) {
         next(error);
       }

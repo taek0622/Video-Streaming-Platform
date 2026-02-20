@@ -27,6 +27,7 @@ const storageRootPath = path.isAbsolute(env.localStorageDir)
 
 const testVideoId = 'media-test-video';
 const hlsDir = path.join(storageRootPath, 'videos', testVideoId, 'hls');
+const thumbnailPath = path.join(storageRootPath, 'videos', testVideoId, 'thumbnail.jpg');
 
 const createApp = () => {
   const app = express();
@@ -73,6 +74,17 @@ describe('media route integration', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('video/iso.segment');
+    expect(response.headers['accept-ranges']).toBe('bytes');
+  });
+
+  it('serves thumbnail with expected content-type', async () => {
+    await fs.mkdir(path.dirname(thumbnailPath), { recursive: true });
+    await fs.writeFile(thumbnailPath, Buffer.from([255, 216, 255]));
+
+    const response = await request(createApp()).get(`/media/videos/${testVideoId}/thumbnail`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('image/jpeg');
     expect(response.headers['accept-ranges']).toBe('bytes');
   });
 
@@ -139,5 +151,30 @@ describe('media route integration', () => {
 
     expect(response.status).toBe(200);
     expect(response.text).toContain('#EXTM3U');
+  });
+
+  it('returns 404 for private video thumbnail when requester is not uploader', async () => {
+    await fs.mkdir(path.dirname(thumbnailPath), { recursive: true });
+    await fs.writeFile(thumbnailPath, Buffer.from([255, 216, 255]));
+
+    mocks.videoFindUniqueMock.mockResolvedValue({
+      uploaderId: 'uploader-1',
+      visibility: 'PRIVATE',
+    });
+
+    const viewerToken = signAccessToken({
+      id: 'viewer-1',
+      nickname: 'viewer',
+    });
+
+    const response = await request(createApp())
+      .get(`/media/videos/${testVideoId}/thumbnail`)
+      .set('Authorization', `Bearer ${viewerToken}`);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      code: 'MEDIA_NOT_FOUND',
+      message: 'Media not found',
+    });
   });
 });

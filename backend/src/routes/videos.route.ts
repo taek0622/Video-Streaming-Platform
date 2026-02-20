@@ -4,6 +4,7 @@ import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
 import { attachAuthIfPresent, requireAuth } from '../middlewares/authenticate-jwt';
 import { buildPlaybackUrl } from '../services/media/adaptive-transcoder';
+import { buildThumbnailUrl } from '../services/media/media-url';
 import { enqueueVideoProcessingJob } from '../services/media/video-processing-worker';
 import { createLikeToggleService } from '../services/likes/like-toggle';
 import { localUploadUrlProvider } from '../services/storage/local-upload-url-provider';
@@ -58,6 +59,10 @@ const parseCommentContent = (contentRaw: unknown): string => {
   }
 
   return content;
+};
+
+const calculateScore = (viewCount: number, likeCount: number): number => {
+  return viewCount + likeCount * 10;
 };
 
 videosRouter.post('/', requireAuth, async (req, res, next) => {
@@ -154,6 +159,7 @@ videosRouter.post('/:id/complete', requireAuth, async (req, res, next) => {
         status: VideoStatus.PROCESSING,
         errorMessage: null,
         playbackPath: null,
+        durationSeconds: null,
       },
       select: {
         id: true,
@@ -417,12 +423,18 @@ videosRouter.get('/:id', attachAuthIfPresent, async (req, res, next) => {
         status: true,
         title: true,
         description: true,
-        thumbnailUrl: true,
+        durationSeconds: true,
         playbackPath: true,
         errorMessage: true,
         createdAt: true,
         viewCount: true,
         likeCount: true,
+        uploader: {
+          select: {
+            id: true,
+            nickname: true,
+          },
+        },
       },
     });
 
@@ -430,7 +442,13 @@ videosRouter.get('/:id', attachAuthIfPresent, async (req, res, next) => {
       throw new AppError(404, 'VIDEO_NOT_FOUND', 'Video not found');
     }
 
-    if (video.visibility === VideoVisibility.PRIVATE && req.user?.id !== video.uploaderId) {
+    const isUploader = req.user?.id === video.uploaderId;
+
+    if (video.visibility === VideoVisibility.PRIVATE && !isUploader) {
+      throw new AppError(404, 'VIDEO_NOT_FOUND', 'Video not found');
+    }
+
+    if (!isUploader && (video.status !== VideoStatus.READY || video.durationSeconds === null || !video.playbackPath)) {
       throw new AppError(404, 'VIDEO_NOT_FOUND', 'Video not found');
     }
 
@@ -439,13 +457,17 @@ videosRouter.get('/:id', attachAuthIfPresent, async (req, res, next) => {
       : null;
 
     res.status(200).json({
+      id: video.id,
+      uploader: video.uploader,
       status: video.status,
       errorMessage: video.errorMessage,
       playbackUrl,
       title: video.title,
       description: video.description,
-      thumbnailUrl: video.thumbnailUrl,
+      durationSeconds: video.durationSeconds,
+      thumbnailUrl: buildThumbnailUrl(video.id),
       createdAt: video.createdAt,
+      score: calculateScore(video.viewCount, video.likeCount),
       viewCount: video.viewCount,
       likeCount: video.likeCount,
     });

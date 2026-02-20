@@ -1,7 +1,9 @@
-import { VideoVisibility } from '@prisma/client';
+import { VideoStatus, VideoVisibility } from '@prisma/client';
 import { Router } from 'express';
 import { AppError } from '../errors/app-error';
 import { prisma } from '../lib/prisma';
+import { buildPlaybackUrl } from '../services/media/adaptive-transcoder';
+import { buildThumbnailUrl } from '../services/media/media-url';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_SIZE = 10;
@@ -13,10 +15,15 @@ type SearchVideoRow = {
   id: string;
   title: string;
   description: string | null;
-  thumbnailUrl: string;
+  durationSeconds: number | null;
+  playbackPath: string;
   createdAt: Date;
   viewCount: number;
   likeCount: number;
+  uploader: {
+    id: string;
+    nickname: string;
+  };
 };
 
 const calculateScore = (video: Pick<SearchVideoRow, 'viewCount' | 'likeCount'>): number => {
@@ -65,6 +72,13 @@ searchRouter.get('/', async (req, res, next) => {
     const where = keyword
       ? {
           visibility: VideoVisibility.PUBLIC,
+          status: VideoStatus.READY,
+          durationSeconds: {
+            not: null,
+          },
+          playbackPath: {
+            not: null,
+          },
           OR: [
             {
               title: {
@@ -82,6 +96,13 @@ searchRouter.get('/', async (req, res, next) => {
         }
       : {
           visibility: VideoVisibility.PUBLIC,
+          status: VideoStatus.READY,
+          durationSeconds: {
+            not: null,
+          },
+          playbackPath: {
+            not: null,
+          },
         };
 
     const videos = (await prisma.video.findMany({
@@ -90,10 +111,17 @@ searchRouter.get('/', async (req, res, next) => {
         id: true,
         title: true,
         description: true,
-        thumbnailUrl: true,
+        durationSeconds: true,
+        playbackPath: true,
         createdAt: true,
         viewCount: true,
         likeCount: true,
+        uploader: {
+          select: {
+            id: true,
+            nickname: true,
+          },
+        },
       },
     })) as SearchVideoRow[];
 
@@ -122,7 +150,10 @@ searchRouter.get('/', async (req, res, next) => {
       id: video.id,
       title: video.title,
       description: video.description,
-      thumbnailUrl: video.thumbnailUrl,
+      durationSeconds: video.durationSeconds,
+      uploader: video.uploader,
+      playbackUrl: buildPlaybackUrl(video.playbackPath),
+      thumbnailUrl: buildThumbnailUrl(video.id),
       score: video.score,
       viewCount: video.viewCount,
       likeCount: video.likeCount,

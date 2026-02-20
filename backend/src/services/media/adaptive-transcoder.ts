@@ -2,10 +2,15 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../../config/env';
+import { buildPublicUrl } from './media-url';
 import {
   getSourceVideoAbsolutePath,
   getVideoPublicAbsoluteDirectory,
 } from '../storage/local-upload-url-provider';
+
+export type TranscodeResult = {
+  durationSeconds: number | null;
+};
 
 const runFfmpeg = async (args: string[]): Promise<void> => {
   await new Promise<void>((resolve, reject) => {
@@ -33,18 +38,79 @@ const runFfmpeg = async (args: string[]): Promise<void> => {
   });
 };
 
+const runFfprobe = async (args: string[]): Promise<string> => {
+  return new Promise<string>((resolve, reject) => {
+    const ffprobe = spawn(env.ffprobePath, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    ffprobe.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8');
+    });
+
+    ffprobe.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+
+    ffprobe.on('error', (error) => {
+      reject(new Error(`Failed to start ffprobe (${env.ffprobePath}): ${error.message}`));
+    });
+
+    ffprobe.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+
+      reject(new Error(stderr.trim() || `ffprobe failed with exit code ${code ?? 'unknown'}`));
+    });
+  });
+};
+
 const ensureCleanDirectory = async (directoryPath: string): Promise<void> => {
   await fs.rm(directoryPath, { recursive: true, force: true });
   await fs.mkdir(directoryPath, { recursive: true });
 };
 
-export const transcodeVideoToAdaptiveStreams = async (videoId: string): Promise<void> => {
+const readDurationSeconds = async (sourcePath: string): Promise<number | null> => {
+  const output = await runFfprobe([
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'default=noprint_wrappers=1:nokey=1',
+    sourcePath,
+  ]);
+
+  const durationRaw = output.trim();
+  const duration = Number.parseFloat(durationRaw);
+
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return null;
+  }
+
+  return Math.ceil(duration);
+};
+
+export const transcodeVideoToAdaptiveStreams = async (videoId: string): Promise<TranscodeResult> => {
   const sourcePath = getSourceVideoAbsolutePath(videoId);
   const publicVideoDir = getVideoPublicAbsoluteDirectory(videoId);
   const hlsDir = path.join(publicVideoDir, 'hls');
 
   await fs.access(sourcePath);
   await ensureCleanDirectory(hlsDir);
+
+  let durationSeconds: number | null = null;
+
+  try {
+    durationSeconds = await readDurationSeconds(sourcePath);
+  } catch {
+    durationSeconds = null;
+  }
 
   await runFfmpeg([
     '-y',
@@ -78,11 +144,12 @@ export const transcodeVideoToAdaptiveStreams = async (videoId: string): Promise<
   ]);
 
   await fs.rm(sourcePath, { force: true });
+
+  return {
+    durationSeconds,
+  };
 };
 
 export const buildPlaybackUrl = (playbackPath: string): string => {
-  const baseUrl = env.publicBaseUrl.replace(/\/+$/, '');
-  const normalizedPath = playbackPath.startsWith('/') ? playbackPath : `/${playbackPath}`;
-
-  return `${baseUrl}${normalizedPath}`;
+  return buildPublicUrl(playbackPath);
 };

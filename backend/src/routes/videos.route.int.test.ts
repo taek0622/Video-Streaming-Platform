@@ -198,7 +198,7 @@ describe('videos routes integration', () => {
     });
     expect(mocks.videoUpdateMock).toHaveBeenCalledWith({
       where: { id: 'video-1' },
-      data: { status: 'PROCESSING', errorMessage: null, playbackPath: null },
+      data: { status: 'PROCESSING', errorMessage: null, playbackPath: null, durationSeconds: null },
       select: { id: true, status: true, updatedAt: true },
     });
     expect(mocks.enqueueVideoProcessingJobMock).toHaveBeenCalledWith('video-1');
@@ -290,11 +290,15 @@ describe('videos routes integration', () => {
       uploaderId: 'uploader-1',
       visibility: 'PRIVATE',
       status: 'READY',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
       playbackPath: '/media/videos/video-1/hls/master.m3u8',
       errorMessage: null,
       title: 'private video',
       description: 'secret',
-      thumbnailUrl: '/uploads/videos/video-1/thumbnail.jpg',
+      durationSeconds: 210,
       createdAt: new Date('2026-02-14T12:00:00.000Z'),
       viewCount: 10,
       likeCount: 2,
@@ -317,11 +321,15 @@ describe('videos routes integration', () => {
       uploaderId: 'uploader-1',
       visibility: 'PUBLIC',
       status: 'READY',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
       playbackPath: '/media/videos/video-1/hls/master.m3u8',
       errorMessage: null,
       title: 'public video',
       description: 'hello',
-      thumbnailUrl: '/uploads/videos/video-1/thumbnail.jpg',
+      durationSeconds: 210,
       createdAt: new Date('2026-02-14T12:00:00.000Z'),
       viewCount: 4,
       likeCount: 1,
@@ -331,29 +339,90 @@ describe('videos routes integration', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
+      id: 'video-1',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
       status: 'READY',
       errorMessage: null,
       playbackUrl: 'http://localhost:3000/media/videos/video-1/hls/master.m3u8',
       title: 'public video',
       description: 'hello',
-      thumbnailUrl: '/uploads/videos/video-1/thumbnail.jpg',
+      durationSeconds: 210,
+      thumbnailUrl: 'http://localhost:3000/media/videos/video-1/thumbnail',
       createdAt: '2026-02-14T12:00:00.000Z',
+      score: 14,
       viewCount: 4,
       likeCount: 1,
     });
   });
 
-  it('returns processing status for video detail while conversion job is running', async () => {
+  it('returns processing status for uploader while conversion job is running', async () => {
+    const token = signAccessToken({
+      id: 'uploader-1',
+      nickname: 'uploader',
+    });
+
     mocks.videoFindUniqueMock.mockResolvedValue({
       id: 'video-1',
       uploaderId: 'uploader-1',
       visibility: 'PUBLIC',
       status: 'PROCESSING',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
       playbackPath: null,
       errorMessage: null,
       title: 'processing video',
       description: 'still transcoding',
-      thumbnailUrl: '/uploads/videos/video-1/thumbnail.jpg',
+      durationSeconds: null,
+      createdAt: new Date('2026-02-14T12:00:00.000Z'),
+      viewCount: 4,
+      likeCount: 1,
+    });
+
+    const response = await request(app)
+      .get('/videos/video-1')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      id: 'video-1',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
+      status: 'PROCESSING',
+      errorMessage: null,
+      playbackUrl: null,
+      title: 'processing video',
+      description: 'still transcoding',
+      durationSeconds: null,
+      thumbnailUrl: 'http://localhost:3000/media/videos/video-1/thumbnail',
+      createdAt: '2026-02-14T12:00:00.000Z',
+      score: 14,
+      viewCount: 4,
+      likeCount: 1,
+    });
+  });
+
+  it('returns 404 for public video detail when video is not ready and requester is not uploader', async () => {
+    mocks.videoFindUniqueMock.mockResolvedValue({
+      id: 'video-1',
+      uploaderId: 'uploader-1',
+      visibility: 'PUBLIC',
+      status: 'PROCESSING',
+      uploader: {
+        id: 'uploader-1',
+        nickname: 'uploader',
+      },
+      playbackPath: null,
+      errorMessage: null,
+      title: 'processing video',
+      description: 'still transcoding',
+      durationSeconds: null,
       createdAt: new Date('2026-02-14T12:00:00.000Z'),
       viewCount: 4,
       likeCount: 1,
@@ -361,17 +430,10 @@ describe('videos routes integration', () => {
 
     const response = await request(app).get('/videos/video-1');
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
     expect(response.body).toEqual({
-      status: 'PROCESSING',
-      errorMessage: null,
-      playbackUrl: null,
-      title: 'processing video',
-      description: 'still transcoding',
-      thumbnailUrl: '/uploads/videos/video-1/thumbnail.jpg',
-      createdAt: '2026-02-14T12:00:00.000Z',
-      viewCount: 4,
-      likeCount: 1,
+      code: 'VIDEO_NOT_FOUND',
+      message: 'Video not found',
     });
   });
 });
