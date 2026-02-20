@@ -8,6 +8,7 @@ let project = Project(
             destinations: .iOS,
             product: .app,
             bundleId: "com.immeenu.VSP",
+            deploymentTargets: .iOS("26.0"),
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -20,7 +21,12 @@ let project = Project(
                 "Video-Streaming-Platform/Sources",
                 "Video-Streaming-Platform/Resources",
             ],
-            dependencies: []
+            dependencies: [],
+            settings: .settings(
+                base: [
+                    "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.video"
+                ]
+            )
         ),
         .target(
             name: "Video-Streaming-PlatformTests",
