@@ -9,4 +9,5 @@ import Foundation
 
 protocol VideoService {
     func fetchHomeVideo() async -> [Video]
+    func fetchSearchedVideo(keyword: String, sortType: SortType, page: Int) async -> SearchedVideoList
 }
