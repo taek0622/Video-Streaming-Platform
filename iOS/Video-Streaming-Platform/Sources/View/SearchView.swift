@@ -22,9 +22,9 @@ struct SearchView: View {
             VideoCard(video: video)
                 .listRowInsets(.init(top: .zero, leading: .zero, bottom: 8, trailing: .zero))
                 .onAppear {
-                    if (viewModel.videos.lastIndex { $0.id == video.id }) == viewModel.videos.count - 5 {
+                    if (viewModel.videos.firstIndex { $0.id == video.id }) == viewModel.videos.count - 5 {
                         Task {
-                            await viewModel.searchVideo(keyword: searchingText, sortType: .popular)
+                            await viewModel.loadNextPage()
                         }
                     }
                 }
@@ -33,12 +33,9 @@ struct SearchView: View {
         .toolbarVisibility(.hidden, for: .navigationBar)
         .searchable(text: $searchingText)
         .onSubmit(of: .search, {
-            viewModel.resetSearchResult()
-
             Task {
-                await viewModel.searchVideo(keyword: searchingText, sortType: .popular)
+                await viewModel.startNewSearch(keyword: searchingText, sortType: .popular)
             }
         })
     }
 }
-

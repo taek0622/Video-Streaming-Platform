@@ -11,10 +11,12 @@ import Foundation
 final class SearchViewModel: ObservableObject {
 
     @Published var videos: [Video] = []
-    @Published var page = 1
-    @Published private(set) var hasNext = false
-    @Published var isLoading = false
 
+    private var page = 1
+    private var hasNext = false
+    private var isLoading = false
+    private var searchingKeyword = ""
+    private var searchingSortType = SortType.popular
     private var searchingToken = UUID()
 
     private let videoService: VideoService
@@ -23,17 +25,37 @@ final class SearchViewModel: ObservableObject {
         self.videoService = service
     }
 
-    func searchVideo(keyword: String, sortType: SortType) async {
-        if isLoading {
+    func startNewSearch(keyword: String, sortType: SortType) async {
+        page = 1
+        videos = []
+        hasNext = false
+
+        if keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return
         }
 
-        if page != 1 && !hasNext {
+        searchingKeyword = keyword
+        searchingSortType = sortType
+        searchingToken = .init()
+        let sessionToken = searchingToken
+
+        isLoading = true
+        defer { isLoading = false }
+
+        let res = await videoService.fetchSearchedVideo(keyword: keyword, sortType: sortType, page: 1)
+
+        if searchingToken != sessionToken {
             return
         }
 
-        if page == 1 {
-            searchingToken = .init()
+        videos = res.items
+        hasNext = res.hasNext
+        page += 1
+    }
+
+    func loadNextPage() async {
+        if isLoading || !hasNext {
+            return
         }
 
         let sessionToken = searchingToken
@@ -41,7 +63,7 @@ final class SearchViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let res = await videoService.fetchSearchedVideo(keyword: keyword, sortType: sortType, page: page)
+        let res = await videoService.fetchSearchedVideo(keyword: searchingKeyword, sortType: searchingSortType, page: page)
 
         if searchingToken != sessionToken {
             return
@@ -52,10 +74,4 @@ final class SearchViewModel: ObservableObject {
         page += 1
     }
 
-    func resetSearchResult() {
-        videos = []
-        page = 1
-    }
-
 }
-
