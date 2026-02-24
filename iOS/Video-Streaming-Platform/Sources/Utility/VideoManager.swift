@@ -9,8 +9,11 @@ import Foundation
 
 final class VideoManager: VideoService {
 
+    let baseURL = URL(string: "http://localhost:3000")!
+
     func fetchHomeVideo() async -> [Video] {
-        let request = URLRequest(url: URL(string: "http://localhost:3000/home") ?? URL(string: "abount:blank")!)
+        let url = baseURL.appending(path: "home")
+        let request = URLRequest(url: url)
         var result = [Video]()
 
         do {
