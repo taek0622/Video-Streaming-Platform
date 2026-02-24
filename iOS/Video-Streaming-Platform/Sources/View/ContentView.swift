@@ -9,6 +9,12 @@ public struct ContentView: View {
             Tab("Home", systemImage: "house") {
                 HomeView(videoService: videoService)
             }
+
+            Tab(role: .search) {
+                NavigationStack {
+                    SearchView(videoService: videoService)
+                }
+            }
         }
     }
 }

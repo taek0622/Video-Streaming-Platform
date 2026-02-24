@@ -8,7 +8,7 @@
 import Foundation
 
 @MainActor
-class HomeViewModel: ObservableObject {
+final class HomeViewModel: ObservableObject {
 
     @Published var videos = [Video]()
 
