@@ -7,7 +7,7 @@
 
 import Foundation
 
-class VideoManager: VideoService {
+final class VideoManager: VideoService {
 
     func fetchHomeVideo() async -> [Video] {
         let request = URLRequest(url: URL(string: "http://localhost:3000/home") ?? URL(string: "abount:blank")!)
