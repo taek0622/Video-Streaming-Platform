@@ -32,4 +32,18 @@ enum Endpoint {
         }
     }
 
+    var queryItems: [URLQueryItem]? {
+        switch self {
+            case .search(let keyword, let sortType, let page):
+                return [
+                    URLQueryItem(name: "keyword", value: keyword),
+                    URLQueryItem(name: "sort", value: sortType.rawValue),
+                    URLQueryItem(name: "page", value: String(page)),
+                    URLQueryItem(name: "size", value: "20")
+                ]
+            default:
+                return nil
+        }
+    }
+
 }
