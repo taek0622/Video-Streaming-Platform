@@ -46,4 +46,12 @@ enum Endpoint {
         }
     }
 
+    var body: Encodable? {
+        switch self {
+            case .authDev(let request):
+                return request
+            default:
+                return nil
+        }
+    }
 }
