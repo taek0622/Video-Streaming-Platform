@@ -23,4 +23,13 @@ enum Endpoint {
         }
     }
 
+    var method: HttpMethod {
+        switch self {
+            case .home, .search:
+                return .get
+            case .authDev:
+                return .post
+        }
+    }
+
 }
