@@ -9,14 +9,14 @@ import Foundation
 
 final class VideoManager: VideoService {
 
-    let baseURL = URL(string: "http://localhost:3000")!
+    private let apiClient = APIClient(baseURL: APIEnvironment.dev.baseURL)
 
     func fetchHomeVideo() async -> [Video] {
-        let url = baseURL.appending(path: "home")
-        let request = URLRequest(url: url)
+        let endpoint = Endpoint.home
         var result = [Video]()
 
         do {
+            let request = try apiClient.makeRequest(for: endpoint)
             let (data, _) = try await URLSession.shared.data(for: request)
             let decoded = try JSONDecoder().decode([VideoDTO].self, from: data).map { $0.asVideo() }
             result = decoded
@@ -28,17 +28,11 @@ final class VideoManager: VideoService {
     }
 
     func fetchSearchedVideo(keyword: String, sortType: SortType, page: Int) async -> SearchedVideoList {
-        var url = baseURL.appending(path: "search")
-        url.append(queryItems: [
-            URLQueryItem(name: "keyword", value: keyword),
-            URLQueryItem(name: "sort", value: sortType.rawValue), // popular: 인기순, latest: 최신순
-            URLQueryItem(name: "page", value: String(page)), // 기본 1
-            URLQueryItem(name: "size", value: "20") // 기본 10, 최대 50
-        ])
-        let request = URLRequest(url: url)
+        let endpoint = Endpoint.search(keyword: keyword, sortType: sortType, page: page)
         var result = SearchedVideoList(hasNext: false, items: [])
 
         do {
+            let request = try apiClient.makeRequest(for: endpoint)
             let (data, _) = try await URLSession.shared.data(for: request)
             let decoded = try JSONDecoder().decode(SearchedVideoListDTO.self, from: data).asVideoList()
             result = decoded
